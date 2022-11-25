@@ -313,8 +313,13 @@ def download_srtm_data(username, password, url, path):
 
 
 def get_opencellid_urls(country_code, opencellid_access_token):
+    
+    try:
+        country_alpha2 = pycountry.countries.get(alpha_3 = country_code.upper()).alpha_2
+    except:
+        raise ValueError('ISO3 country code is not valid! Please make sure you have entered valid ISO3 country code.')
+
     url = "https://opencellid.org/downloads.php?token="+str(opencellid_access_token)
-    country_alpha2 = pycountry.countries.get(alpha_3 = country_code.upper()).alpha_2
 
     # find table
     html_content = requests.get(url).text 
@@ -397,10 +402,15 @@ def get_opencellid_data(country_code, data_path, write_data = False):
 
 def get_population_data(country_code, dataset_year, data_path, one_km_res = False, un_adjusted = True, worldpop_base_url = 'https://data.worldpop.org/'):
 
+    try:
+        pycountry.countries.get(alpha_3 = country_code.upper()).name
+    except:
+        raise ValueError('ISO3 country code is not valid! Please make sure you have entered valid ISO3 country code.')
+
     worldpop_datasets = pd.read_csv(worldpop_base_url + 'assets/wpgpDatasets.csv')
 
     assert sum(worldpop_datasets.Covariate.str.contains(str(dataset_year)))>0, 'Worldpop dataset for given does not exist!'
-    assert country_code.upper() in worldpop_datasets.ISO3.tolist(), 'Entered ISO3 country code does not exist, please enter valid country code!'
+    assert country_code.upper() in worldpop_datasets.ISO3.tolist(), 'Country code does not exist in the worldpop database!'
 
     dataset_url = worldpop_base_url + worldpop_datasets[(worldpop_datasets.ISO3 == country_code.upper()) & 
                                                             (worldpop_datasets.Covariate == 'ppp_' + str(dataset_year) + ('_UNadj' if un_adjusted else ''))].PathToRaster.values[0]
@@ -434,4 +444,4 @@ def get_population_data(country_code, dataset_year, data_path, one_km_res = Fals
 
     print('Data is extracted to pandas dataframe!')
 
-    return df_pop
+    return df_pop, dataset_name

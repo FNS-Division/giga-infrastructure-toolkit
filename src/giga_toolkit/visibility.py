@@ -192,7 +192,7 @@ class Visiblity(GigaTools):
         print(f'Average # of checks per school: {self.n_checks/len(self.school_data)}')
     
 
-    def run_pipeline(self, write = True):
+    def run_visibility(self, write = True):
 
         self.set_tower_data()
 
@@ -208,7 +208,7 @@ class Visiblity(GigaTools):
                 self.get_visibility()
 
                 if write:
-                    output_filename = f'{self.school_filename[:-4]}_visibility_cluster_{cluster}_{datetime.date.today().strftime("%m%d%Y")}.xlsx'
+                    output_filename = f'{self.school_filename[:-4]}_visibility_cluster_{cluster}_{datetime.date.today().strftime("%m%d%Y")}.csv'
                     self.school_data.to_csv(os.path.join(self.data_path, 'output', output_filename), index = True)
                     print(f'Data is saved with a name {output_filename}')
         
@@ -217,6 +217,6 @@ class Visiblity(GigaTools):
             self.get_visibility()
 
             if write:
-                output_filename = f'{self.school_filename[:-4]}_visibility_cluster_{datetime.date.today().strftime("%m%d%Y")}.xlsx'
+                output_filename = f'{self.school_filename[:-4]}_visibility_cluster_{datetime.date.today().strftime("%m%d%Y")}.csv'
                 self.school_data.to_csv(os.path.join(self.data_path, 'output', output_filename), index = True)
                 print(f'Data is saved with a name {output_filename}')

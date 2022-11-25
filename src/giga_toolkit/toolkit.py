@@ -49,14 +49,14 @@ class GigaTools:
 
         self.school_data = data_read(self.school_file_path)
 
-        assert self.school_data[self.school_id_column_name].duplicated().sum() == 0, 'Duplicate ids exist in the school data! Please make sure each row has unique id and re-run.'
-        
         try:
             self.school_data.set_index(self.school_id_column_name, inplace=True)
         except:
             print('Columns in the dataset: ')
             print(self.school_data.columns)
             raise ValueError('Given school id column is not in the school dataset: please initialize school_id_column_name parameter with one of the above!')
+
+        assert self.school_data.index.duplicated().sum() == 0, 'Duplicate ids exist in the school data! Please make sure each row has unique id and re-run.'
         
         self.school_data = df_to_gdf(self.school_data, rename = True)
 

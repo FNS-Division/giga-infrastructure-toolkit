@@ -443,7 +443,7 @@ class FiberPath(GigaTools):
 
         if self.no_fiber:
 
-            with pd.ExcelWriter(os.path.join(self.data_path, 'output', self.school_file_folder, output_filename)) as writer:
+            with pd.ExcelWriter(os.path.join(self.data_path, 'output', self.school_subfoldername, output_filename)) as writer:
 
                 self.mst_path.to_excel(writer, sheet_name='mst_path', index=False)
                 self.mst_nodes.to_excel(writer, sheet_name = 'mst_path_nodes', index = False)
@@ -452,7 +452,7 @@ class FiberPath(GigaTools):
 
         else:
             
-            with pd.ExcelWriter(os.path.join(self.data_path, 'output', self.school_file_folder, output_filename)) as writer:
+            with pd.ExcelWriter(os.path.join(self.data_path, 'output', self.school_subfoldername, output_filename)) as writer:
 
                 self.closest_nodes_x.to_excel(writer, sheet_name='closest_nodes', index=True)
                 self.fiber_path_nodes.to_excel(writer, sheet_name = 'fiber_path_nodes', index = False)
@@ -496,6 +496,6 @@ class FiberPath(GigaTools):
                                 }
                                 )
 
-            map_.save_to_html(config=config, file_name=os.path.join(self.data_path, 'output', self.school_file_folder, self.school_file_name[:-4] + '.html',), read_only=False)
+            map_.save_to_html(config=config, file_name=os.path.join(self.data_path, 'output', self.school_subfoldername, self.school_file_name[:-4] + '.html',), read_only=False)
             print('Visual saved as HTML file to the output folder!')
 
