@@ -1,8 +1,4 @@
-# Copyright 2022 Giga
-
-# Your use of this software is subject to the Giga Principles and
-# Policies. This copyright notice shall be included in all copies
-# or substantial portions of the software.
+# 2022 Giga
 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -86,7 +82,7 @@ def data_read(filepath):
 
 def get_geo_column_names(df):
 
-    geo_cols = list(filter(lambda a: a.casefold() in ['lon', 'lat', 'longitude', 'latitude', 'long', 'x', 'y', 'lat_', 'lon_'], df.columns))
+    geo_cols = list(filter(lambda a: a.casefold() in ['lon', 'lat', 'longitude', 'latitude', 'long', 'x', 'y', 'lat_', 'lon_', 'lat(s)', 'long(e)', 'lon(e)'], df.columns))
 
     if len(geo_cols)>2:
         raise ValueError('Please keep only the relevant geo refernce columns. We find multiple matches: ' + str(geo_cols))

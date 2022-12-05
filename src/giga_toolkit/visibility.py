@@ -1,8 +1,4 @@
-# Copyright 2022 Giga
-
-# Your use of this software is subject to the Giga Principles and
-# Policies. This copyright notice shall be included in all copies
-# or substantial portions of the software.
+# 2022 Giga
 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -14,7 +10,7 @@
 
 from giga_toolkit.toolkit import *
 
-class Visiblity(GigaTools):
+class Visibility(GigaTools):
 
     def __init__(self, 
                     school_filename,
@@ -44,7 +40,7 @@ class Visiblity(GigaTools):
         self.tower_id_column_name = tower_id_column_name
         self.tower_file_path = os.path.join(self.data_path, 'raw', tower_filename)
         self.school_id_column_name = school_id_column_name
-        self.srmt_dict = gp.read_file(os.path.join(path, 'assets', srtm_dict_filename))
+        self.srtm_dict = gp.read_file(os.path.join(path, 'assets', srtm_dict_filename))
         self.srtm_folder_path = os.path.join(self.data_path, srtm_folder_name)
         self.avg_school_height = avg_school_height
         self.max_tower_reach = max_tower_reach
@@ -81,7 +77,7 @@ class Visiblity(GigaTools):
             tower['height'] = self.avg_tower_height
             print(f'Column "heigh" is not in the dataset. Therefore, "height" column is initialized with avg_tower_height which is set as {self.avg_tower_height}!')
         
-        self.tower_data = tower.loc[['lat', 'lon', 'height', 'geometry']]
+        self.tower_data = tower.loc[:, ['lat', 'lon', 'height', 'geometry']]
     
 
     def download_matching_srtm_tiles(self):
@@ -217,6 +213,6 @@ class Visiblity(GigaTools):
             self.get_visibility()
 
             if write:
-                output_filename = f'{self.school_filename[:-4]}_visibility_cluster_{datetime.date.today().strftime("%m%d%Y")}.csv'
+                output_filename = f'{self.school_filename[:-4]}_visibility_{datetime.date.today().strftime("%m%d%Y")}.csv'
                 self.school_data.to_csv(os.path.join(self.data_path, 'output', output_filename), index = True)
                 print(f'Data is saved with a name {output_filename}')

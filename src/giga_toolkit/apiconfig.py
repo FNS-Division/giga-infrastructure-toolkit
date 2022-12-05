@@ -1,8 +1,4 @@
-# Copyright 2022 Giga
-
-# Your use of this software is subject to the Giga Principles and
-# Policies. This copyright notice shall be included in all copies
-# or substantial portions of the software.
+# 2022 Giga
 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -13,6 +9,6 @@
 # DEALINGS IN THE SOFTWARE.
 
 giga_toolkit_config = {
-  'TOOLKIT_VERSION': 'v2.0.0',
+  'TOOLKIT_VERSION': 'v2.0.1',
   'STRICT_MODE': False
 }

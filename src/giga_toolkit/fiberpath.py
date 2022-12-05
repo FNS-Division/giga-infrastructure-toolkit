@@ -1,8 +1,4 @@
-# Copyright 2022 Giga
-
-# Your use of this software is subject to the Giga Principles and
-# Policies. This copyright notice shall be included in all copies
-# or substantial portions of the software.
+# 2022 Giga
 
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -498,4 +494,3 @@ class FiberPath(GigaTools):
 
             map_.save_to_html(config=config, file_name=os.path.join(self.data_path, 'output', self.school_subfoldername, self.school_file_name[:-4] + '.html',), read_only=False)
             print('Visual saved as HTML file to the output folder!')
-
