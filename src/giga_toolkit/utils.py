@@ -175,10 +175,10 @@ def tif_to_df(tif):
     x = np.tile(x, ysize)
     y = np.repeat(y, xsize)
 
-    tif_dict = {'lon': x, 'lat': y, 'population': flat}
+    tif_dict = {'lon': x, 'lat': y, 'value': flat}
     df_pop = pd.DataFrame(tif_dict)
 
-    return df_pop
+    return df_pop, res
     
 
 def get_osm_road_data(dataset, locations = None, network_type = 'all', buffer_around_bbox = 0, nodes_id_column = 'id', verbose = True):
@@ -436,7 +436,8 @@ def get_population_data(country_code, dataset_year, data_path, one_km_res = Fals
         print('Country population tif file could not be downloaded! Please download it manually and place it under the data folder.')
 
     print('Processing raster data...')
-    df_pop = tif_to_df(pop_tif)
+    df_pop, res = tif_to_df(pop_tif)
+    df_pop.rename(columns ={'value': 'population'})
 
     print('Data is extracted to pandas dataframe!')
 

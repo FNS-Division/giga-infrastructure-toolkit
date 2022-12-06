@@ -139,13 +139,23 @@ class Visibility(GigaTools):
 
         if len(self.unmatched_locations) != 0:
             print(f'# of unmatched locations: {len(self.unmatched_locations)}')
-            print('The unmatched school/tower geo locations are not valid and will be discarded from the dataset(s). Discarded locations are kept in "unmatched_locations" attribute.')
+            raise RuntimeWarning('The unmatched school/tower geo locations are not valid and will be discarded from the dataset(s). Discarded locations are kept in "unmatched_locations" attribute.')
 
         school_unmatched, tower_unmatched = [a for a in self.unmatched_locations.index if a in self.school_data.index], [a for a in self.unmatched_locations.index if a in self.tower_data.index]
         self.school_data.drop(index = school_unmatched, inplace = True)
         self.tower_data.drop(index = tower_unmatched, inplace = True)
 
         self.school_data['within_tower_reach'] = False
+
+        height_cols = [col for col in self.school_data.columns if 'height' in str(col).lower()]
+        
+        if len(height_cols) > 1:
+            raise RuntimeError('There are more than one column in the school dataset indicating the school building height! Make sure there is only one height column.')
+        elif len(height_cols) ==1:
+            self.school_data.rename(columns={height_cols[0]: 'height'}, inplace = True)
+        else:
+            self.school_data['height'] = self.avg_school_height
+
         
         srtm1_data = Srtm1HeightMapCollection(auto_build_index=True, hgt_dir=Path(self.srtm_folder_path))
         
@@ -166,7 +176,7 @@ class Visibility(GigaTools):
             for twr in tower_match.itertuples():
                 self.n_checks += 1
                 e_profile, d_profile = zip(*[(i.elevation, i.distance) for i in srtm1_data.get_elevation_profile(school.lat, school.lon, twr.lat, twr.lon)])
-                df_elev = pd.DataFrame(zip(np.linspace(e_profile[0] + self.avg_school_height, e_profile[-1] + twr.height, len(e_profile)), e_profile, d_profile), columns = ['los', 'dep', 'dist'])
+                df_elev = pd.DataFrame(zip(np.linspace(e_profile[0] + school.height, e_profile[-1] + twr.height, len(e_profile)), e_profile, d_profile), columns = ['los', 'dep', 'dist'])
                 df_elev['dif'] = df_elev.los - df_elev.dep
                 t_visible = np.all(df_elev.dif > -self.los_correction)
                 visible_count += t_visible
