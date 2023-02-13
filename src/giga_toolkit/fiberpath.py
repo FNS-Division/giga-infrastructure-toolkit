@@ -197,7 +197,7 @@ class FiberPath(GigaTools):
         self.graph = gnx.spatial_points_merge(self.graph, school_max_distance, intersection_nodes_attr={'label': 'school_merge'})
 
         for j in tqdm(df_distance_to_graph.loc[df_distance_to_graph['geo_dist']>self.max_dist_from_road, 'id']):
-            self.graph = gnx.spatial_points_merge(self.graph, self.school_data.loc[j, ['lat', 'lon', 'geometry']], intersection_nodes_attr={'label': 'school_merge'})
+            self.graph = gnx.spatial_points_merge(self.graph, self.school_data.loc[[j], ['lat', 'lon', 'geometry']], intersection_nodes_attr={'label': 'school_merge'})
         
         #self.graph = self.graph.to_undirected()
         gnx.fill_length_attribute(self.graph)
@@ -420,6 +420,7 @@ class FiberPath(GigaTools):
         else:
 
             self.set_graph(buffer_around_bbox = buffer_around_bbox)
+            self.make_osm_graph_conected()
             self.merge_schools_to_graph()
             self.set_school_distance_matrix()
             self.mst_schools()
