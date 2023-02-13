@@ -63,7 +63,7 @@ class CellTower(GigaTools):
             print(f'Nearest OpenCelliD towers are mapped to the school locations.')
         
 
-        def run_cell(self, write = True):
+        def run_cell(self, write = False):
         
             self.set_tower_data(write_data=write)
             self.get_closest_tower()
@@ -103,7 +103,7 @@ class Population(GigaTools):
         self.pop_one_km_res = pop_one_km_res
     
 
-    def run_population(self, write = True):
+    def run_population(self, write = False):
 
         self.population, self.pop_dataset_name = get_population_data(country_code = self.country_code, 
                                                                         dataset_year = self.pop_dataset_year, 
@@ -151,5 +151,65 @@ class Population(GigaTools):
             
         if write:
             output_filename = f'{self.school_filename[:-4]}_pop_{datetime.date.today().strftime("%m%d%Y")}.csv'
+            self.school_data.to_csv(os.path.join(self.data_path, 'output', output_filename), index = True)
+            print(f'Data is saved with a name {output_filename}')
+
+
+class MobileCoverage(GigaTools):
+    
+    def __init__(self, 
+            country_code, 
+            school_filename, 
+            school_subfoldername='',
+            path = os.getcwd(), 
+            school_id_column_name='giga_school_id',
+            coverage_with_variable_signal_strength = False,
+            coverage_col_name = '4G_coverage'):
+        
+        super().__init__(path)
+        self.path = path
+        self.data_path = os.path.join(path, 'data')
+        self.school_filename = school_filename
+        self.school_subfoldername = school_subfoldername
+        self.school_file_path = os.path.join(self.data_path, 'school', school_subfoldername,  school_filename)
+        self.country_code = country_code
+        self.school_id_column_name = school_id_column_name
+        self.coverage_with_variable_signal_strength = coverage_with_variable_signal_strength
+        self.coverage_col_name = coverage_col_name
+
+        try:
+            country_alpha2 = pycountry.countries.get(alpha_3 = self.country_code.upper()).alpha_2
+        except:
+            raise ValueError('ISO3 country code is not valid! Please make sure you have entered valid ISO3 country code.')
+        
+        self.mc_filename = f'MCE_{country_alpha2.upper()}4G_2020.tif'
+        self.mc_file_path = os.path.join(self.path, 'data', 'raw', 'MCE_4G', self.mc_filename)
+    
+
+    def run_coverage(self, write = False):
+
+        mc_tif = gdal.Open(self.mc_file_path)
+
+        df_mc, res = tif_to_df(mc_tif)
+
+        # filter coverage data with coverage level
+        # 1: strong signal strength, 2: variable signal strength, 3: no signal
+        if self.coverage_with_variable_signal_strength:
+            df_mc = df_mc[df_mc.value!=3]
+        else:
+            df_mc = df_mc[df_mc.value==1]
+
+        # transform point data to polygon geodataframe
+        gdf_mc_covered = df_to_gdf(df_mc, crs = 'epsg:3857')
+        gdf_mc_covered.geometry = gdf_mc_covered.geometry.buffer(res, cap_style= 3)
+        gdf_mc_covered = gdf_mc_covered.to_crs('epsg:4326')
+
+        # spatial join school data to MC data
+        self.school_data = self.school_data.sjoin(gdf_mc_covered[['geometry']], how='left', predicate = 'intersects').rename(columns = {'index_right': self.coverage_col_name})
+        self.school_data = self.school_data[~self.school_data.index.duplicated(keep='first')]
+        self.school_data[self.coverage_col_name] = self.school_data[self.coverage_col_name].apply(lambda x: 1 if x>0 else 0)
+
+        if write:
+            output_filename = f'{self.school_filename[:-4]}_mc_{datetime.date.today().strftime("%m%d%Y")}.csv'
             self.school_data.to_csv(os.path.join(self.data_path, 'output', output_filename), index = True)
             print(f'Data is saved with a name {output_filename}')
