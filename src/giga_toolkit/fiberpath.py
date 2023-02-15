@@ -276,7 +276,7 @@ class FiberPath(GigaTools):
 
             nx_mst = nx.Graph()
             nx_mst.add_weighted_edges_from(zip(self.mst_edges['u'], self.mst_edges['v'], self.mst_edges['length']))
-            nx.set_edge_attributes(nx_mst, self.mst_edges.set_index(['u', 'v'])['osm_type'], 'osm_type')
+            nx.set_edge_attributes(nx_mst, self.mst_edges.set_index(['u', 'v'])['label'], 'label')
             
             mst_splitters = [node_[0] for node_ in nx_mst.degree() if node_[1]>2]
             
