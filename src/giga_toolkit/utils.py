@@ -41,7 +41,6 @@ import sys
 import os
 
 
-
 def obfuscate(plainText):
     plainBytes = plainText.encode('ascii')
     encodedBytes = base64.b64encode(plainBytes)
