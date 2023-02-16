@@ -21,6 +21,7 @@ class FiberPath(GigaTools):
                     school_id_column_name = 'giga_school_id',
                     fiber_id_column_name = 'source_id',
                     country_code = '',
+                    max_connection_length = 5,
                     max_dist_from_road = 2000,
                     n_clusters = 1
                     ):
@@ -38,6 +39,7 @@ class FiberPath(GigaTools):
         self.osm_dataset = osm_dataset
         self.country_code = country_code
         self.giga_edge_idx = 0
+        self.max_connection_length = max_connection_length * 1000
         self.max_dist_from_road = max_dist_from_road
         self.n_clusters = n_clusters
 
@@ -214,7 +216,7 @@ class FiberPath(GigaTools):
 
         self.edges = self.graph.edges_to_gdf()
         self.nodes = self.graph.nodes_to_gdf()
-        self.nodes.lon[self.nodes.lon.isnull()], self.nodes.lat[self.nodes.lat.isnull()] = self.nodes.geometry.x, self.nodes.geometry.y
+        self.nodes.loc[self.nodes.lon.isnull(), 'lon'], self.nodes.loc[self.nodes.lat.isnull(), 'lat'] = self.nodes.geometry.x, self.nodes.geometry.y
 
         self.graph_pdn = self.osm.to_graph(self.nodes, self.edges, graph_type = 'pandana', direction = 'twoway', retain_all=True)
 
@@ -274,7 +276,7 @@ class FiberPath(GigaTools):
 
             nx_mst = nx.Graph()
             nx_mst.add_weighted_edges_from(zip(self.mst_edges['u'], self.mst_edges['v'], self.mst_edges['length']))
-            nx.set_edge_attributes(nx_mst, self.mst_edges.set_index(['u', 'v'])['osm_type'], 'osm_type')
+            nx.set_edge_attributes(nx_mst, self.mst_edges.set_index(['u', 'v'])['label'], 'label')
             
             mst_splitters = [node_[0] for node_ in nx_mst.degree() if node_[1]>2]
             
@@ -329,11 +331,22 @@ class FiberPath(GigaTools):
         print('Iteratively connecting schools...')
         # iteratively find the closest connection node to each school over MST
         connected_idx = []
+        unconnected_idx = []
         for row in self.closest_nodes_x.itertuples():
 
             if row.distance_to_closest_fiber_node != 0:
+
+                # check distance from POI to connected nodes in the graph
                 dist_to_connected = self.mst_graph.shortest_path_lengths(np.repeat(row.Index, len(connected_idx)), connected_idx)
                 min_dist_to_connected = min(dist_to_connected)
+
+                # constraint on maximum connection length
+                if min_dist_to_connected > self.max_connection_length:
+                    self.closest_nodes_x.at[row.Index, 'distance_to_upstream_node'] = min_dist_to_connected
+                    self.closest_nodes_x.at[row.Index, 'connected_fiber_node_id'] = ''
+                    self.closest_nodes_x.at[row.Index, 'distance_to_connected_fiber_node'] = ''
+                    unconnected_idx.append(row.Index)
+                    continue
                 
                 if min_dist_to_connected < row.distance_to_closest_fiber_node:
                     self.closest_nodes_x.at[row.Index, 'distance_to_upstream_node'] = min_dist_to_connected
@@ -344,8 +357,12 @@ class FiberPath(GigaTools):
 
             connected_idx.append(row.Index)
         
+        print(f'Number of unconnected schools due to maximum connection length constraint: {len(unconnected_idx)}')
+        
         print('Extracting fiber path...')
-        school_to_fiber_paths = self.mst_graph.shortest_paths(tuple(self.closest_nodes_x.index), tuple(self.closest_nodes_x.connected_fiber_node_id))
+
+        path_connected_schools = self.closest_nodes_x.loc[connected_idx]
+        school_to_fiber_paths = self.mst_graph.shortest_paths(tuple(path_connected_schools.index), tuple(path_connected_schools.connected_fiber_node_id))
 
         nx.set_edge_attributes(self.graph, False, 'fiber_path')
         for path_ in school_to_fiber_paths:
@@ -375,11 +392,11 @@ class FiberPath(GigaTools):
         self.nodes = self.graph.nodes_to_gdf()
         self.fiber_path_nodes = self.nodes.loc[fiber_path_nodes_idx]
 
-        self.closest_nodes_x['fiber_path'] = pd.Series(school_to_fiber_paths).apply(lambda x: [el for el in x if el in list(self.school_data.index) + splitters]).values
-        self.closest_nodes_x['closest_vertice_on_fiber_path'] = self.closest_nodes_x['fiber_path'].apply(lambda x: x[1] if len(x) > 1 else x[0])
-        self.closest_nodes_x['distance_to_closest_vertice_on_fiber_path'] = self.mst_graph.shortest_path_lengths(tuple(self.closest_nodes_x.index), tuple(self.closest_nodes_x.closest_vertice_on_fiber_path))
+        self.closest_nodes_x.loc[path_connected_schools.index, 'fiber_path'] = pd.Series(school_to_fiber_paths).apply(lambda x: [el for el in x if el in list(path_connected_schools.index) + splitters]).values
+        self.closest_nodes_x.loc[path_connected_schools.index, 'closest_vertice_on_fiber_path'] = self.closest_nodes_x.loc[path_connected_schools.index, 'fiber_path'].apply(lambda x: x[1] if len(x) > 1 else x[0])
+        self.closest_nodes_x.loc[path_connected_schools.index, 'distance_to_closest_vertice_on_fiber_path'] = self.mst_graph.shortest_path_lengths(tuple(path_connected_schools.index), tuple(self.closest_nodes_x.loc[path_connected_schools.index, 'closest_vertice_on_fiber_path']))
 
-        self.closest_nodes_x['osm_distance_to_connected_fiber_node'] = [
+        self.closest_nodes_x.loc[path_connected_schools.index, 'osm_distance_to_connected_fiber_node'] = [
             sum(
                 [nx_fp.edges[edge_]['weight'] for edge_ in zip(path_[:-1], path_[1:]) if nx_fp.edges[edge_]['label'] != nx_fp.edges[edge_]['label']]
                     ) for path_ in school_to_fiber_paths
