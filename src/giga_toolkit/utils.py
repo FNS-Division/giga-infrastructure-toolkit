@@ -24,6 +24,7 @@ from sklearn.neighbors import KDTree
 from scipy.sparse.csgraph import minimum_spanning_tree
 from srtm.height_map_collection import Srtm1HeightMapCollection
 import grispy as gsp
+from math import radians, atan2, sqrt, cos, sin
 import itertools
 import requests
 import gzip
@@ -33,6 +34,7 @@ import pycountry
 from bs4 import BeautifulSoup
 import math
 import networkx as nx
+import pandana as pdna
 import geonetworkx as gnx
 from pathlib import Path
 import base64
@@ -257,6 +259,13 @@ def initialize_geograph(nodes, edges, crs = gnx.WGS84_CRS, is_undirected = True,
     return gx, gx_nodes, gx_edges
 
 
+def generate_all_index_pairs(vals):
+    
+    ind = itertools.combinations(vals, 2)
+    orig_nodes, dest_nodes = zip(*ind)
+    return orig_nodes, dest_nodes
+
+
 def upper_triangle_to_full_dmx(val_list, n):
     mask = ~np.tri(n, k=0, dtype = bool)
     out = np.zeros((n,n))
@@ -265,23 +274,54 @@ def upper_triangle_to_full_dmx(val_list, n):
     return out
 
 
-def geo_dist(coords_1, coords_2):
-    R = 6371.0 # radius of the earth
-    lon1 = math.radians(coords_1[0])
-    lat1 = math.radians(coords_1[1])
-    lon2 = math.radians(coords_2[0])
-    lat2 = math.radians(coords_2[1])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2 # Haversine formula
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    distance = R * c
-    return distance
+def haversine_(lats, lons, R = 6371.0, upper_tri = False):
 
-def km2deg(x, R):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees) using the
+    Haversine formula.
+
+    Parameters
+    ----------
+    lats, lons: array-like 
+        Arrays of latitudes and longitudes of the two points.
+        Each array should have shape (2,) where the first element
+        is the latitude and the second element is the longitude.
+    upper_tri : bool, optional
+        If True, returns the distance matrix in upper triangular form.
+        Default is False.
+    R : float, optional
+        Radius of the earth in kilometers. Default is 6371.0 km.
+    
+    Returns
+    -------
+    ndarray
+        The distance matrix between the points in kilometers.
+        If `upper_tri` is True, returns the upper triangular form of the matrix.
+
+    """
+
+    # Convert latitudes and longitudes to radians
+    lat_rads = np.radians(lats)
+    lon_rads = np.radians(lons)
+
+    # Compute pairwise haversine distances using broadcasting
+    dlat = lat_rads[:, np.newaxis] - lat_rads[np.newaxis, :]
+    dlon = lon_rads[:, np.newaxis] - lon_rads[np.newaxis, :]
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat_rads[:, np.newaxis]) * np.cos(lat_rads[np.newaxis, :]) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    distances = R * c
+    
+    if upper_tri:
+        i_upper = np.triu_indices(distances.shape[0], k=1)
+        distances = distances[i_upper]
+    
+    return distances
+
+def km2deg(x, R = 6371.0):
     return x * np.rad2deg(1/R)
 
-def deg2km(x, R):
+def deg2km(x, R = 6371.0):
     return np.deg2rad(x) * R
 
 
@@ -384,6 +424,7 @@ def get_opencellid_data(country_code, data_path, write_data = False):
             else:
                 logging.error("Non-specific error.  Details in %s", temp_file)
             raise
+        
     os.remove(temp_file)
 
     if write_data:
