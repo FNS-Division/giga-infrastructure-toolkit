@@ -79,7 +79,6 @@ class FiberPath(GigaTools):
     def prepare_data(self):
 
         if self.fiber_filename != 'none':
-            #self.fiber_file_path = os.path.join(self.data_path, 'raw',  self.fiber_filename)
             self.set_fiber_data()
 
         assert 'label' in self.school_data.columns, 'School data should include "label" column indicating if school is connected (fiber) or not (school)'
@@ -88,7 +87,11 @@ class FiberPath(GigaTools):
 
         self.fiber_idx = self.fiber_data.index
 
-        self.school_data.drop(columns='label', inplace = True)
+        try:
+            self.school_data.set_index(self.school_data.index.astype(int), inplace=True)
+        except:
+            self.school_data.set_index(self.school_data.index.astype(str), inplace=True)
+        
         self.no_fiber = (len(self.fiber_data) == 0)
         print('School/Node data is ready for fiber path analysis!')
     
@@ -149,7 +152,7 @@ class FiberPath(GigaTools):
             nx.set_edge_attributes(self.graph, 'los_edge', 'label')
 
             # initialize pandana graph
-            self.graph_pdn = pdna.Network(self.school_data["lon"], self.school_data["lat"], self.edges['u'], self. edges['v'], self.edges[["length"]])
+            self.graph_pdn = pdna.Network(self.school_data["lon"], self.school_data["lat"], self.edges['u'], self.edges['v'], self.edges[["length"]])
     
 
 
