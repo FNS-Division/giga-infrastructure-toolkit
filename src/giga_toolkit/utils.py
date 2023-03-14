@@ -325,6 +325,13 @@ def deg2km(x, R = 6371.0):
     return np.deg2rad(x) * R
 
 
+def get_srtm_dict(dict_url = 'https://dwtkns.com/srtm30m/srtm30m_bounding_boxes.json'):
+    req = request.Request(dict_url)
+    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
+    content = request.urlopen(req)
+    return gp.read_file(content)
+
+
 def download_srtm_data(username, password, url, path):
 
     password_manager = request.HTTPPasswordMgrWithDefaultRealm()

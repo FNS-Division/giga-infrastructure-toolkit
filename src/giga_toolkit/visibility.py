@@ -17,9 +17,8 @@ class Visibility(GigaTools):
                     tower_filename, 
                     path = os.getcwd(), 
                     school_subfoldername = '', 
-                    school_id_column_name = 'giga_school_id',
-                    tower_id_column_name = 'source_id',
-                    srtm_dict_filename = 'srtm30m_bounding_boxes.json',
+                    school_id_column_name = 'poi_id',
+                    tower_id_column_name = 'ict_id',
                     srtm_folder_name = 'srtm1',
                     avg_school_height = 15,
                     max_tower_reach = 35,
@@ -40,7 +39,6 @@ class Visibility(GigaTools):
         self.tower_id_column_name = tower_id_column_name
         self.tower_file_path = os.path.join(self.data_path, 'raw', tower_filename)
         self.school_id_column_name = school_id_column_name
-        self.srtm_dict = gp.read_file(os.path.join(path, 'assets', srtm_dict_filename))
         self.srtm_folder_path = os.path.join(self.data_path, srtm_folder_name)
         self.avg_school_height = avg_school_height
         self.max_tower_reach = max_tower_reach
@@ -82,6 +80,7 @@ class Visibility(GigaTools):
 
     def download_matching_srtm_tiles(self):
 
+        # open file containing EarthData username and password
         f = open(os.path.join(self.path, 'assets', 'earthdata_account.txt'))
         lines = f.readlines()
         username = deobfuscate(lines[0].strip())
@@ -89,13 +88,17 @@ class Visibility(GigaTools):
         f.close()
 
         print('Locating SRTM tiles...')
-
+        # concatenate school and tower data
         all_loc = pd.concat([self.school_data[['geometry']], self.tower_data[['geometry']]])
         all_loc.geometry = all_loc.geometry.buffer(km2deg(self.max_tower_reach, self.earth_r))
-        area_srtm_files = all_loc.sjoin(self.srtm_dict, how='left', predicate='intersects')
+        
+        # get SRTM dictionary
+        srtm_dict = get_srtm_dict()
+
+        # left spatial join srtm dictionary to school and tower locations
+        area_srtm_files = all_loc.sjoin(srtm_dict, how='left', predicate='intersects')
 
         print('In total ' + str(len(area_srtm_files.dataFile.unique())) + ' SRTM tiles are matched to the school and tower locations.')
-
         self.unmatched_locations = area_srtm_files[area_srtm_files.dataFile.isnull()]
 
         print('Downloading matched SRTM tiles...')
