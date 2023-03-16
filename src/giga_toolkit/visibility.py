@@ -100,6 +100,7 @@ class Visibility(GigaTools):
 
         print('In total ' + str(len(area_srtm_files.dataFile.unique())) + ' SRTM tiles are matched to the school and tower locations.')
         self.unmatched_locations = area_srtm_files[area_srtm_files.dataFile.isnull()]
+        area_srtm_files.dropna(subset='dataFile',  inplace=True)
 
         print('Downloading matched SRTM tiles...')
         for file in area_srtm_files.dataFile.unique():
