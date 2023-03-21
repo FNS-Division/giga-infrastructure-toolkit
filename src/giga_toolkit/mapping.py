@@ -8,7 +8,8 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from giga_toolkit.toolkit import *
+from giga_toolkit.utils import *
+from giga_toolkit.toolkit import GigaTools
 
 
 class CellTower(GigaTools):

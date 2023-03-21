@@ -9,7 +9,9 @@
 # DEALINGS IN THE SOFTWARE.
 
 
-from giga_toolkit.toolkit import *
+from giga_toolkit.toolkit import GigaTools
+from giga_toolkit.utils import *
+from sklearn.neighbors import KDTree
 import heapq
 
 

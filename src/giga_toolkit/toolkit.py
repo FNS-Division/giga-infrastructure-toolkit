@@ -8,8 +8,10 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from giga_toolkit.utils import *
+from giga_toolkit.utils import data_read, df_to_gdf
 from giga_toolkit import apiconfig
+from sklearn.cluster import KMeans
+import os
 
 class GigaTools:
 

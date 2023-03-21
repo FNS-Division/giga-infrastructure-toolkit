@@ -8,7 +8,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from shapely.geometry import Point, box, LineString
+from shapely.geometry import Point, box
 import numpy as np
 from shapely import wkt
 import geopandas as gp
@@ -16,23 +16,18 @@ import pandas as pd
 from osgeo import gdal
 from pyrosm import get_data, OSM
 from pyrosm.data import sources
-from sklearn.cluster import KMeans
+import logging
 from urllib import request
 import datetime
 from keplergl import KeplerGl
-from sklearn.neighbors import KDTree
 from scipy.sparse.csgraph import minimum_spanning_tree
-from srtm.height_map_collection import Srtm1HeightMapCollection
 import grispy as gsp
-from math import radians, atan2, sqrt, cos, sin
 import itertools
 import requests
 import gzip
 import logging
-import http.cookiejar as cookielib
 import pycountry
 from bs4 import BeautifulSoup
-import math
 import networkx as nx
 import pandana as pdna
 import geonetworkx as gnx
@@ -97,7 +92,6 @@ def get_geo_column_names(df):
         geo_cols.sort()
     
     return geo_cols
-
 
 
 def rename_geo_cols(df):
@@ -318,41 +312,57 @@ def haversine_(lats, lons, R = 6371.0, upper_tri = False):
     
     return distances
 
-def km2deg(x, R = 6371.0):
-    return x * np.rad2deg(1/R)
+def km2deg(km, R = 6371.0):
+    """
+    Converts distance in kilometers to distance in degrees longitude/latitude.
 
-def deg2km(x, R = 6371.0):
-    return np.deg2rad(x) * R
+    Args:
+        km (float): Distance in kilometers.
 
-
-def get_srtm_dict(dict_url = 'https://dwtkns.com/srtm30m/srtm30m_bounding_boxes.json'):
-    req = request.Request(dict_url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
-    content = request.urlopen(req)
-    return gp.read_file(content)
-
-
-def download_srtm_data(username, password, url, path):
-
-    password_manager = request.HTTPPasswordMgrWithDefaultRealm()
-    password_manager.add_password(None, "https://urs.earthdata.nasa.gov", username, password)
-
-    cookie_jar = cookielib.CookieJar()
-
-    # Install all the handlers.
-
-    opener = request.build_opener(
-        request.HTTPBasicAuthHandler(password_manager),
-        #request.HTTPHandler(debuglevel=1),    # Uncomment these two lines to see
-        #request.HTTPSHandler(debuglevel=1),   # details of the requests/responses
-        request.HTTPCookieProcessor(cookie_jar))
-    request.install_opener(opener)
+    Returns:
+        float: Distance in degrees.
+    """
+    return km * np.rad2deg(1/R)
 
 
-    # retrieve the file from url
+def deg2km(deg, R = 6371.0):
+    """
+    Converts distance in degrees longitude/latitude to distance in kilometers.
 
-    request.urlretrieve(url, path)
+    Args:
+        deg (float): Distance in degrees.
 
+    Returns:
+        float: Distance in kilometers.
+    """
+    return np.deg2rad(deg) * R
+
+
+def setup_logging(name = __name__):
+    """
+    Configures and returns a logger object.
+
+    Returns:
+        logging.Logger: A logger object that can be used to log messages.
+    """
+    
+    # add a logger instance
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+     
+    # create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # create console handler and set level to INFO
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    
+    # add formatter to ch
+    ch.setFormatter(formatter)
+
+    # add ch to logger
+    logger.addHandler(ch)
+    return logger
 
 
 def get_opencellid_urls(country_code, opencellid_access_token):
