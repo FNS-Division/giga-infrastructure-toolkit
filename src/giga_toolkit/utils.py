@@ -8,7 +8,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from shapely.geometry import Point, box, LineString
+from shapely.geometry import Point, box
 import numpy as np
 from shapely import wkt
 import geopandas as gp
@@ -16,23 +16,20 @@ import pandas as pd
 from osgeo import gdal
 from pyrosm import get_data, OSM
 from pyrosm.data import sources
-from sklearn.cluster import KMeans
+import logging
 from urllib import request
 import datetime
 from keplergl import KeplerGl
-from sklearn.neighbors import KDTree
 from scipy.sparse.csgraph import minimum_spanning_tree
-from srtm.height_map_collection import Srtm1HeightMapCollection
 import grispy as gsp
 import itertools
 import requests
 import gzip
 import logging
-import http.cookiejar as cookielib
 import pycountry
 from bs4 import BeautifulSoup
-import math
 import networkx as nx
+import pandana as pdna
 import geonetworkx as gnx
 from pathlib import Path
 import base64
@@ -94,7 +91,6 @@ def get_geo_column_names(df):
         geo_cols.sort()
     
     return geo_cols
-
 
 
 def rename_geo_cols(df):
@@ -256,6 +252,13 @@ def initialize_geograph(nodes, edges, crs = gnx.WGS84_CRS, is_undirected = True,
     return gx, gx_nodes, gx_edges
 
 
+def generate_all_index_pairs(vals):
+    
+    ind = itertools.combinations(vals, 2)
+    orig_nodes, dest_nodes = zip(*ind)
+    return orig_nodes, dest_nodes
+
+
 def upper_triangle_to_full_dmx(val_list, n):
     mask = ~np.tri(n, k=0, dtype = bool)
     out = np.zeros((n,n))
@@ -264,47 +267,101 @@ def upper_triangle_to_full_dmx(val_list, n):
     return out
 
 
-def geo_dist(coords_1, coords_2):
-    R = 6371.0 # radius of the earth
-    lon1 = math.radians(coords_1[0])
-    lat1 = math.radians(coords_1[1])
-    lon2 = math.radians(coords_2[0])
-    lat2 = math.radians(coords_2[1])
-    dlon = lon2 - lon1
-    dlat = lat2 - lat1
-    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2 # Haversine formula
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    distance = R * c
-    return distance
+def haversine_(lats, lons, R = 6371.0, upper_tri = False):
 
-def km2deg(x, R):
-    return x * np.rad2deg(1/R)
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees) using the
+    Haversine formula.
 
-def deg2km(x, R):
-    return np.deg2rad(x) * R
+    Parameters
+    ----------
+    lats, lons: array-like 
+        Arrays of latitudes and longitudes of the two points.
+        Each array should have shape (2,) where the first element
+        is the latitude and the second element is the longitude.
+    upper_tri : bool, optional
+        If True, returns the distance matrix in upper triangular form.
+        Default is False.
+    R : float, optional
+        Radius of the earth in kilometers. Default is 6371.0 km.
+    
+    Returns
+    -------
+    ndarray
+        The distance matrix between the points in kilometers.
+        If `upper_tri` is True, returns the upper triangular form of the matrix.
+
+    """
+
+    # Convert latitudes and longitudes to radians
+    lat_rads = np.radians(lats)
+    lon_rads = np.radians(lons)
+
+    # Compute pairwise haversine distances using broadcasting
+    dlat = lat_rads[:, np.newaxis] - lat_rads[np.newaxis, :]
+    dlon = lon_rads[:, np.newaxis] - lon_rads[np.newaxis, :]
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat_rads[:, np.newaxis]) * np.cos(lat_rads[np.newaxis, :]) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    distances = R * c
+    
+    if upper_tri:
+        i_upper = np.triu_indices(distances.shape[0], k=1)
+        distances = distances[i_upper]
+    
+    return distances
+
+def km2deg(km, R = 6371.0):
+    """
+    Converts distance in kilometers to distance in degrees longitude/latitude.
+
+    Args:
+        km (float): Distance in kilometers.
+
+    Returns:
+        float: Distance in degrees.
+    """
+    return km * np.rad2deg(1/R)
 
 
-def download_srtm_data(username, password, url, path):
+def deg2km(deg, R = 6371.0):
+    """
+    Converts distance in degrees longitude/latitude to distance in kilometers.
 
-    password_manager = request.HTTPPasswordMgrWithDefaultRealm()
-    password_manager.add_password(None, "https://urs.earthdata.nasa.gov", username, password)
+    Args:
+        deg (float): Distance in degrees.
 
-    cookie_jar = cookielib.CookieJar()
-
-    # Install all the handlers.
-
-    opener = request.build_opener(
-        request.HTTPBasicAuthHandler(password_manager),
-        #request.HTTPHandler(debuglevel=1),    # Uncomment these two lines to see
-        #request.HTTPSHandler(debuglevel=1),   # details of the requests/responses
-        request.HTTPCookieProcessor(cookie_jar))
-    request.install_opener(opener)
+    Returns:
+        float: Distance in kilometers.
+    """
+    return np.deg2rad(deg) * R
 
 
-    # retrieve the file from url
+def setup_logging(name = __name__):
+    """
+    Configures and returns a logger object.
 
-    request.urlretrieve(url, path)
+    Returns:
+        logging.Logger: A logger object that can be used to log messages.
+    """
+    
+    # add a logger instance
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+     
+    # create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    
+    # create console handler and set level to INFO
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.INFO)
+    
+    # add formatter to ch
+    ch.setFormatter(formatter)
 
+    # add ch to logger
+    logger.addHandler(ch)
+    return logger
 
 
 def get_opencellid_urls(country_code, opencellid_access_token):
@@ -383,6 +440,7 @@ def get_opencellid_data(country_code, data_path, write_data = False):
             else:
                 logging.error("Non-specific error.  Details in %s", temp_file)
             raise
+        
     os.remove(temp_file)
 
     if write_data:
