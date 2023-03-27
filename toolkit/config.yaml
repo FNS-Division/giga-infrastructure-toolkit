@@ -1,0 +1,57 @@
+meta:
+    analysis_name: 'ZWE Visibility'
+    date: '22.03.2023'
+    path: '/mnt/batch/tasks/shared/LS_root/mounts/clusters/compute-big/code/Users/utku.ozturk/fiber-nodes-mst/'
+    country_code: 'zwe'
+
+parameter:
+    R: 6371.0
+    n_clusters: 1
+
+    fiber_model:
+        use_road_data: True
+        max_connection_length: 50
+        max_dist_from_road: 2
+
+    visibility:
+        srtm_path: '/mnt/batch/tasks/shared/LS_root/mounts/clusters/compute-big/code/Users/utku.ozturk/fiber-nodes-mst/data/srtm1/'
+        earthdata_username: ''
+        earthdata_password: ''
+        assumed_school_building_height: 15
+        assumed_tower_height: 45
+        max_tower_reach: 35
+        n_visible: 3
+    
+    mapping:
+        celltower:
+
+        population:
+            dataset_year: 2020
+            dataset_res_1km: False
+            dataset_UNadj: True
+            area_radius: 5
+        
+        coverage:
+            with_variable_signal_strength: False
+
+
+
+data:
+    data_path: './data'
+
+    poi_data:
+        school: 'zw_schools_iinfrastructure_attributes_added.xlsx'
+            id_col: 'poi_id'
+
+    ict_data:
+        celltower_4g_5g: 'zwe_4G_processed.csv'
+            id_col: 'ict_id'
+        celltower_2g_3g: ''
+            id_col: 'ict_id'
+        fiber_real: ''
+            id_col: 'ict_id'
+        fiber_estimated: ''
+            id_col: 'ict_id'
+    
+
+
