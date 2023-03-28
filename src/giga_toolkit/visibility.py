@@ -109,6 +109,24 @@ class Visibility(GigaTools):
             self.logger.warn(f'Column "height" is not in the dataset. Therefore, "height" column is initialized with avg_tower_height which is set as {self.avg_tower_height}!')
         
         self.tower_data = tower.loc[:, ['lat', 'lon', 'height', 'geometry']]
+    
+    @staticmethod
+    def max_distance_to_horizon(height, R = 6371.0):
+
+        """
+        Calculates the maximum distance to the horizon given the height of an observer above the Earth's surface.
+        
+        Args:
+        height (float): The height of the observer above the Earth's surface in meters.
+        R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+        
+        Returns:
+        float: The maximum distance to the horizon in kilometers.
+        """
+        # Calculate the maximum distance to the horizon using the Pythagorean theorem
+        # d^2 = 2*R*h where d is the distance to the horizon, R is the radius of the Earth, and h is the height of the observer.
+        distance_to_horizon = np.sqrt(2 * R * height)
+        return distance_to_horizon
 
     
     @staticmethod
