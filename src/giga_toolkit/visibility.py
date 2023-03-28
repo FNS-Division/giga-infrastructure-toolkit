@@ -14,6 +14,7 @@ import http.cookiejar as cookielib
 from scipy.spatial import cKDTree
 from srtm.height_map_collection import Srtm1HeightMapCollection
 from shapely.geometry import LineString
+from typing import Dict
 
 class Visibility(GigaTools):
 
@@ -32,14 +33,29 @@ class Visibility(GigaTools):
                     earthdata_username = '',
                     earthdata_password = '',
                     earthdata_account_file = 'earthdata_account.txt',
-                    avg_school_height = 15,
-                    max_tower_reach = 35,
-                    n_visible = 1,
+                    avg_school_height: float = 15,
+                    max_tower_reach: float = 35,
+                    n_visible: int = 3,
                     avg_tower_height = 0,
                     los_correction = 0,
                     country_code = '',
                     n_clusters = 1
                     ):
+        """
+        Initializes a new instance of the Visibility class.
+        
+        Args:
+        school_filename (str): A filename to the school data which includes columns for latitude, longitude, 
+                                    and building height.
+        tower_filename (str): A filename to the tower data which includes columns for latitude, longitude, and 
+                                   tower height.
+        srtm_folder_name (str or Path): The name to the folder containing SRTM elevation data.
+        max_tower_reach (float): The maximum distance (in kilometers) from a school to a cell phone tower to be considered
+                                 in the analysis.
+        n_visible (int, optional): The minimum number of cell phone towers that must be visible from a school in order for 
+                                   it to be considered "covered". Default is 3.
+        avg_school_height (float, optional): The average height of school buildings, in meters. Default is 15.
+        """
         
         super().__init__(path)
         self.path = path
@@ -63,6 +79,7 @@ class Visibility(GigaTools):
         self.country_code = country_code
         self.n_clusters = n_clusters
         self.logger = setup_logging('visibility_logger')
+        self.logger.info('New visibility object created.')
         
 
     
@@ -96,9 +113,23 @@ class Visibility(GigaTools):
     
     @staticmethod
     def get_srtm_dict(dict_url = 'https://dwtkns.com/srtm30m/srtm30m_bounding_boxes.json'):
+        """
+        Retrieve the SRTM dictionary file from the provided url.
+
+        Args:
+            dict_url (str): The url of the SRTM dictionary file.
+
+        Returns:
+            A GeoDataFrame containing the SRTM dictionary information.
+
+        Raises:
+            RuntimeError: If the SRTM dictionary cannot be read from the provided url.
+        """
+        # Create the request object with user agent header
         req = request.Request(dict_url)
         req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
         content = request.urlopen(req)
+        # Read the content if status code is 200
         if content.status == 200:
             return gp.read_file(content)
         else:
@@ -107,21 +138,44 @@ class Visibility(GigaTools):
 
     @staticmethod
     def locate_srtm_tiles(df, srtm_dict):
-    
-        # left spatial join srtm dictionary to school and tower locations
-        matched_tiles = df.sjoin(srtm_dict, how='left', predicate='intersects')
+        """
+        Spatially join the SRTM dictionary with school and tower locations.
 
+        Args:
+            df (pandas.DataFrame): The DataFrame containing school and tower locations.
+            srtm_dict (geopandas.GeoDataFrame): The GeoDataFrame containing SRTM dictionary information.
+
+        Returns:
+            A tuple of two GeoDataFrames - matched_tiles and unmatched_locations.
+            matched_tiles contains the rows of srtm_dict that intersect with df.
+            unmatched_locations contains the rows of df that don't intersect with srtm_dict.
+        """
+        # Perform spatial join using 'intersects' predicate
+        matched_tiles = df.sjoin(srtm_dict, how='left', predicate='intersects')
+        # Find the rows with null values for dataFile
         unmatched_locations = matched_tiles[matched_tiles.dataFile.isnull()]
 
         return matched_tiles, unmatched_locations
     
     @staticmethod
     def srtm_directory_check(srtm_folder_path, srtm_tiles):
+        """
+        Check if SRTM files corresponding to srtm_tiles exist in the provided directory.
 
+        Args:
+            srtm_folder_path (str): The path of the directory where SRTM files are stored.
+            srtm_tiles (geopandas.GeoDataFrame): The GeoDataFrame containing the SRTM tiles to check.
+
+        Returns:
+            A set containing the file paths of SRTM files that need to be downloaded.
+        """
+        # Initialize an empty set to store file paths of SRTM files to download
         srtm_files_to_download = set()
-        
+
+        # Check if each file in srtm_tiles exists in the directory
         for file in srtm_tiles.dataFile.unique():
             file_path = os.path.join(srtm_folder_path, file)
+            # If the file doesn't exist, add it to the set
             if not os.path.exists(file_path):
                 srtm_files_to_download.add(file_path)
 
@@ -130,14 +184,26 @@ class Visibility(GigaTools):
     
     @staticmethod
     def download_srtm_tile(username, password, url, path):
+        """
+        Downloads a SRTM tile from the specified url and saves it to the specified path.
 
+        Args:
+            username (str): The Earthdata username.
+            password (str): The Earthdata password.
+            url (str): The url of the SRTM tile to download.
+            path (str): The path where the SRTM tile should be saved.
+
+        Returns:
+            None
+        """
+        # Create password manager to handle authentication
         password_manager = request.HTTPPasswordMgrWithDefaultRealm()
         password_manager.add_password(None, "https://urs.earthdata.nasa.gov", username, password)
 
+        # Create cookie jar to handle cookies
         cookie_jar = cookielib.CookieJar()
 
         # Install all the handlers.
-
         opener = request.build_opener(
             request.HTTPBasicAuthHandler(password_manager),
             #request.HTTPHandler(debuglevel=1),    # Uncomment these two lines to see
@@ -145,15 +211,29 @@ class Visibility(GigaTools):
             request.HTTPCookieProcessor(cookie_jar))
         request.install_opener(opener)
 
-        # retrieve the file from url
+        # Retrieve the file from url
         request.urlretrieve(url, path)
     
 
 
     def download_matching_srtm_tiles(self):
 
+        """
+        Downloads SRTM tiles matching school and tower locations, and discards unmatched locations.
+        
+        Parameters:
+        -----------
+        None
+        
+        Returns:
+        --------
+        None
+        """
+        
         # concatenate school and tower data
         all_loc = pd.concat([self.school_data[['geometry']], self.tower_data[['geometry']]])
+
+        # buffer the locations by max tower reach and convert to degrees
         all_loc['geometry'] = all_loc.geometry.buffer(km2deg(self.max_tower_reach))
         
         # get SRTM dictionary
@@ -163,6 +243,8 @@ class Visibility(GigaTools):
         # locate srtm tiles
         self.logger.info('Locating SRTM tiles...')        
         matched_tiles, unmatched_locations = Visibility.locate_srtm_tiles(all_loc, srtm_dict)
+
+        # drop tiles that don't match any location
         matched_tiles.dropna(subset='dataFile',  inplace=True)
         self.logger.info('In total ' + str(len(matched_tiles.dataFile.unique())) + ' SRTM tiles are matched to the school and tower locations.')
 
@@ -171,15 +253,20 @@ class Visibility(GigaTools):
             self.logger.info(f'# of unmatched locations: {len(unmatched_locations)}')
             self.logger.warn('The unmatched school/tower geo locations are not valid and will be discarded from the dataset(s). Discarded locations are kept in "school_unmatched" and "tower_unmatched" attribute.')
 
+        # get indices of unmatched schools and towers
         self.school_unmatched, self.tower_unmatched = [a for a in unmatched_locations.index if a in self.school_data.index], [a for a in unmatched_locations.index if a in self.tower_data.index]
+        
+        # drop unmatched schools and towers from respective datasets
         self.school_data.drop(index = self.school_unmatched, inplace = True)
         self.tower_data.drop(index = self.tower_unmatched, inplace = True)
 
+        # get list of SRTM tiles that need to be downloaded
         srtm_files_to_download = Visibility.srtm_directory_check(self.srtm_folder_path, matched_tiles)
 
         if len(srtm_files_to_download) > 0:
-
             self.logger.info('Initializing EarthData credentials...')
+
+            # if account details are not provided, read them from file
             if len(self.earthdata_account_id) == 0 or len(self.earthdata_pwd) == 0:
                 assert os.path.exists(os.path.join(self.path, 'assets', self.earthdata_account_file)), f'Please provide EarthData account details in a text file named {self.earthdata_account_file} under assets folder!'
 
@@ -194,6 +281,8 @@ class Visibility(GigaTools):
                 password = self.earthdata_password
 
             self.logger.info('Downloading matched SRTM tiles...')
+
+            # download each SRTM tile
             for file_path in srtm_files_to_download:
                 Visibility.download_srtm_tile(username, password, self.srtm_base_url + file_path.split('/')[-1], file_path)
 
@@ -258,24 +347,80 @@ class Visibility(GigaTools):
         
         return has_line_of_sight
     
-    
-    def get_visibility(self):
 
+    @staticmethod
+    def calculate_three_dimension_haversine(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, height1, lat2, lon2, height2):
+        """
+        Calculate the three-dimensional Haversine distance between two points in latitude, longitude, and altitude.
+        
+        Args:
+        - srtm1_data: Srtm1HeightMapCollection - SRTM1 data for the area
+        - lat1: float - latitude of point 1 (in degrees)
+        - lon1: float - longitude of point 1 (in degrees)
+        - height1: float - altitude of point 1 (in meters)
+        - lat2: float - latitude of point 2 (in degrees)
+        - lon2: float - longitude of point 2 (in degrees)
+        - height2: float - altitude of point 2 (in meters)
+        
+        Returns:
+        - float: the three-dimensional Haversine distance between the two points (in meters)
+        """
+        
+        # Get the elevation of point 1 and point 2
+
+        h1 = srtm1_data.get_altitude(lat1, lon1) + height1
+
+        h2 = srtm1_data.get_altitude(lat2,lon2) + height2
+
+        # Calculate the great circle distance between the points (in kilometers)
+        distance_km = haversine_([lat1,lat2],[lon1,lon2],upper_tri=True)
+
+        # Convert the distance to meters
+        distance_m = distance_km[0] * 1000
+
+        # Calculate the difference in height between the points (in meters)
+        dheight = h2 - h1
+
+        # Calculate the three-dimensional Haversine distance (in meters)
+        d3 = np.sqrt(distance_m ** 2 + dheight ** 2)
+        
+        return d3
+    
+    
+    def get_visibility(self) -> Dict:
+        """
+        Calculate visibility of schools from nearby towers.
+        
+        Returns:
+        -------
+        Dict:
+            A dictionary containing the visibility information for each school. 
+            Keys are the index of the schools, and values are another dictionary containing 
+            whether the school is visible or not, and information about the towers within 
+            range and visible to the school.
+        """
+        # download SRTM tiles that match the school and tower data
         self.download_matching_srtm_tiles()
 
+        # find the column containing the school building height information
         height_cols = [col for col in self.school_data.columns if 'height' in str(col).lower()]
 
+        # Check if there is more than one height column, and raise an error if so
         if len(height_cols) > 1:
             raise RuntimeError('There are more than one column in the school dataset indicating the school building height! Make sure there is only one height column.')
+        # If there is only one height column, rename it to 'height'
         elif len(height_cols) ==1:
             self.school_data.rename(columns={height_cols[0]: 'height'}, inplace = True)
+        # If there is no height column, assign the average school height to a new column 'height'
         else:
             self.school_data['height'] = self.avg_school_height
         
+        # load SRTM elevation data
         srtm1_data = Srtm1HeightMapCollection(auto_build_index=True, hgt_dir=Path(self.srtm_folder_path))
         
         self.n_checks = 0
 
+        # create a k-d tree of the tower locations for efficient nearest neighbor search
         kdtree = cKDTree(self.tower_data[['lon', 'lat']].to_numpy())
 
         # Create a dictionary to store the visibility information for each school
@@ -298,20 +443,21 @@ class Visibility(GigaTools):
 
             # iterate over towers within maximum tower reach and check visibility
             tower_match = self.tower_data.iloc[neighbors].copy()
-            tower_match['dist_km'] = dist_km
+            #tower_match['dist_km'] = dist_km
             for twr in tower_match.itertuples():
                 self.n_checks += 1
-                has_line_of_sight = Visibility.check_visibility(srtm1_data, school.lat, school.lon, self.avg_school_height, twr.lat, twr.lon, twr.height)
+                has_line_of_sight = Visibility.check_visibility(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height)
                 visible_count += has_line_of_sight
                 
+                # If the tower is visible, add tower information to visibility dictionary for current school
                 if has_line_of_sight:
-                    # add tower information to visibility dictionary for current school
                     twr_idx = 'tower_' + str(visible_count)
                     visibility_dict[school.Index].update({
                         twr_idx: twr.Index,
                         twr_idx + '_lat': twr.lat,
                         twr_idx + '_lon': twr.lon,
-                        twr_idx + '_dist': twr.dist_km,
+                        #twr_idx + '_dist': twr.dist_km,
+                        twr_idx + '_anternna_dist': Visibility.calculate_three_dimension_haversine(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height),
                         twr_idx + '_los_geom': LineString([twr.geometry, school.geometry])
                     })
                 
@@ -326,6 +472,7 @@ class Visibility(GigaTools):
 
         return visibility_dict
     
+
     def write_visibility_data(self, vis_dict, filename, flex_format = False):
         if flex_format:
             output = pd.DataFrame(vis_dict.items(), vis_dict.keys(), columns =['id', 'visibility']).drop(columns='id', inplace=True)
@@ -333,6 +480,7 @@ class Visibility(GigaTools):
             output = pd.DataFrame(vis_dict.values(), vis_dict.keys())
         output.to_csv(os.path.join(self.data_path, 'output', filename), index= True)
         self.logger.info(f'Data is saved with a name {filename}')
+
 
     def run_visibility(self):
         
