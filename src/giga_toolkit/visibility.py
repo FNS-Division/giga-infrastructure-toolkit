@@ -82,8 +82,6 @@ class Visibility(GigaTools):
         self.logger.info('New visibility object created.')
         
 
-    
-
     def set_tower_data(self):
         
         assert os.path.exists(self.tower_file_path), 'Please make sure you specify the correct file name to the tower data.'
@@ -331,6 +329,46 @@ class Visibility(GigaTools):
         dist, ind = kdtree_of_towers.query(query_instance, len(neighbors))
 
         return ind, deg2km(dist)
+
+    @staticmethod
+    def calculate_fresnel(x1, y1, x2, y2, frequency, num_points):
+        """
+        Calculate the shape of the first Fresnel zone for a pair of antennas.
+
+        Parameters:
+        x1, y1 : float
+            Coordinates of the first antenna in meters.
+        x2, y2 : float
+            Coordinates of the second antenna in meters.
+        frequency : float
+            Frequency of the signal in GHz.
+        num_points : int
+            Number of points to use to approximate the shape of the Fresnel zone.
+
+        Returns:
+        x, y : numpy arrays
+            x-coordinates and y-coordinates of the points defining the shape of the Fresnel zone.
+        """
+        # Convert frequency to Hz and set the speed of light in m/s
+        fr = frequency * 1e9
+        c = 2.997925e8
+
+        # Calculate the wavelength and major/minor axes of the Fresnel zone
+        wavelength = c / fr
+        a = 0.5 * np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+        r = np.sqrt(wavelength * a) / 2
+
+        # Generate N points on the ellipse
+        angles = np.linspace(0, 2*np.pi, num_points)
+        X = a * np.cos(angles)
+        Y = r * np.sin(angles)
+
+        # Rotate and translate the ellipse to align with the line connecting the antennas
+        angle = np.arctan2(y2 - y1, x2 - x1)
+        x = X * np.cos(angle) - Y * np.sin(angle) + (x1 + x2) / 2
+        y = X * np.sin(angle) + Y * np.cos(angle) + (y1 + y2) / 2
+
+        return x, y
 
     @staticmethod
     def check_visibility(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, height1, lat2, lon2, height2, data = False):
