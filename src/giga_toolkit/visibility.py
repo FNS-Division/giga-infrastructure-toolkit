@@ -370,6 +370,27 @@ class Visibility(GigaTools):
 
         return x, y
 
+    
+    @staticmethod
+    def calculate_azimuth(lat1, lon1, lat2, lon2):
+        """
+        Calculates the azimuth angle between two geographic points.
+        Args:
+            lat1: latitude of the first antenna in decimal degrees
+            lon1: longitude of the first antenna in decimal degrees
+            lat2: latitude of the second antenna in decimal degrees
+            lon2: longitude of the second antenna in decimal degrees
+        Returns:
+            The azimuth angle between the two antennas in decimal degrees
+        """
+        lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
+        dLon = lon2 - lon1
+        y = np.sin(dLon) * np.cos(lat2)
+        x = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(dLon)
+        brng = np.arctan2(y, x)
+        return np.round((np.degrees(brng) + 360) % 360,2)
+    
+
     @staticmethod
     def check_visibility(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, height1, lat2, lon2, height2, data = False):
 
@@ -514,6 +535,7 @@ class Visibility(GigaTools):
                         twr_idx + '_lon': twr.lon,
                         #twr_idx + '_dist': twr.dist_km,
                         twr_idx + '_anternna_dist': Visibility.calculate_three_dimension_haversine(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height),
+                        twr_idx + '_azimuth_angle': Visibility.calculate_azimuth(school.lat, school.lon, twr.lat, twr.lon),
                         twr_idx + '_los_geom': LineString([twr.geometry, school.geometry])
                     })
                 
