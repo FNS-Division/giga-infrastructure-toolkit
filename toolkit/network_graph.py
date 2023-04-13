@@ -1,12 +1,12 @@
 
 class NetworkGraph:
     
-    def __init__(self, osm_data=None, locations=None):
+    def __init__(self, locations, use_road_data = True):
         self.graph = None
-        if osm_data is not None:
-            # create the graph using road data
-            self.graph = self.prepare_data(osm_data)
-        elif locations is not None:
+
+        if use_road_data:
+            self.graph = self.prepare_data()
+        else:
             # create the graph using line of sight edges
             self.graph = self.create_los_graph(locations)
 
