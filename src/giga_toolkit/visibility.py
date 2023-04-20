@@ -8,13 +8,17 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from giga_toolkit.toolkit import GigaTools
-from giga_toolkit.utils import *
 import http.cookiejar as cookielib
 from scipy.spatial import cKDTree
 from srtm.height_map_collection import Srtm1HeightMapCollection
 from shapely.geometry import LineString
+from pathlib import Path
+from urllib import request
 from typing import Dict
+
+from giga_toolkit.toolkit import GigaTools
+from giga_toolkit.utils import *
+
 
 class Visibility(GigaTools):
 

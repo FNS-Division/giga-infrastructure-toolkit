@@ -13,25 +13,16 @@ import numpy as np
 from shapely import wkt
 import geopandas as gp
 import pandas as pd
-from osgeo import gdal
 from pyrosm import get_data, OSM
 from pyrosm.data import sources
 import logging
-from urllib import request
-import datetime
-from keplergl import KeplerGl
-from scipy.sparse.csgraph import minimum_spanning_tree
-import grispy as gsp
 import itertools
 import requests
 import gzip
 import logging
 import pycountry
 from bs4 import BeautifulSoup
-import networkx as nx
-import pandana as pdna
 import geonetworkx as gnx
-from pathlib import Path
 import base64
 from tqdm import tqdm
 import sys
@@ -403,7 +394,7 @@ def get_opencellid_urls(country_code, opencellid_access_token):
 
     ## get the links for the country code
     if country_alpha2 not in cell_dict['Country Code'].values:
-        print('Country code is invalid or not exist in OpenCelliD database!')
+        logging.error('Country code is invalid or not exist in OpenCelliD database!')
         sys.exit(1)
     else:
         links = cell_dict[cell_dict['Country Code']==country_alpha2]['Files (grouped by MCC)'].values[0]
@@ -411,14 +402,14 @@ def get_opencellid_urls(country_code, opencellid_access_token):
     return links
 
 
-def get_opencellid_data(country_code, data_path, write_data = False):
-    links = get_opencellid_urls(country_code)
+def get_opencellid_data(country_code, opencellid_access_token, path, write_data = False):
+    links = get_opencellid_urls(country_code, opencellid_access_token)
     colnames = ['radio', 'mcc', 'net', 'area', 'cell', 'unit', 'lon', 'lat', 'range', 'samples', 'changeable', 'created', 'updated', 'averageSignal']
     df_cell = pd.DataFrame()
 
     for link in links:
         response = requests.get(link, stream=True)
-        temp_file = os.path.join(data_path, 'raw', 'opencellid_' + country_code.lower()+'.csv.gz.tmp')
+        temp_file = os.path.join(path, 'opencellid_' + country_code.lower()+'.csv.gz.tmp')
 
         totes_chunks = 0
         with open(temp_file, 'wb') as feed_file:
@@ -446,57 +437,8 @@ def get_opencellid_data(country_code, data_path, write_data = False):
 
     if write_data:
         file_name = 'opencellid_' + country_code.lower() + '.parquet'
-        print('Writing country cell tower data to the data directory...')
-        df_cell.to_parquet(os.path.join(data_path, 'raw', file_name), index=False)
-        print('Done! Dataset is saved with a name: ' + file_name)
+        logging.info('Writing country OpenCellId data to the data directory...')
+        df_cell.to_parquet(os.path.join(path, file_name), index=False)
+        logging.info('Country OpenCelliD data is saved with a name: ' + file_name)
 
     return df_cell
-
-
-
-def get_population_data(country_code, dataset_year, data_path, one_km_res = False, un_adjusted = True, worldpop_base_url = 'https://data.worldpop.org/'):
-
-    try:
-        pycountry.countries.get(alpha_3 = country_code.upper()).name
-    except:
-        raise ValueError('ISO3 country code is not valid! Please make sure you have entered valid ISO3 country code.')
-
-    worldpop_datasets = pd.read_csv(worldpop_base_url + 'assets/wpgpDatasets.csv')
-
-    assert sum(worldpop_datasets.Covariate.str.contains(str(dataset_year)))>0, 'Worldpop dataset for given does not exist!'
-    assert country_code.upper() in worldpop_datasets.ISO3.tolist(), 'Country code does not exist in the worldpop database!'
-
-    dataset_url = worldpop_base_url + worldpop_datasets[(worldpop_datasets.ISO3 == country_code.upper()) & 
-                                                            (worldpop_datasets.Covariate == 'ppp_' + str(dataset_year) + ('_UNadj' if un_adjusted else ''))].PathToRaster.values[0]
-    if one_km_res:
-        dataset_url = dataset_url.split('/')
-        dataset_url[5] = dataset_url[5] + '_1km' + ('_UNadj' if un_adjusted else '')
-        dataset_url[8] = dataset_url[8].replace(str(dataset_year), str(dataset_year) + '_1km_Aggregated')
-        dataset_name = dataset_url[-1]
-        dataset_url = '/'.join(dataset_url)
-    else:
-        dataset_name = dataset_url.split('/')[-1]
-    
-
-    dataset_path = os.path.join(data_path, dataset_url.split('/')[-1])
-
-    if not os.path.exists(dataset_path):
-        request.urlretrieve(dataset_url, dataset_path)
-        print('Dataset download complete!')
-
-    if os.path.exists(dataset_path):
-        print('Reading country population tif file...')
-        try:
-            pop_tif = gdal.Open(dataset_path)
-        except:
-            raise RuntimeError('Unable to open country population tif file!')
-    else:
-        print('Country population tif file could not be downloaded! Please download it manually and place it under the data folder.')
-
-    print('Processing raster data...')
-    df_pop, res = tif_to_df(pop_tif)
-    df_pop.rename(columns ={'value': 'population'})
-
-    print('Data is extracted to pandas dataframe!')
-
-    return df_pop, dataset_name
