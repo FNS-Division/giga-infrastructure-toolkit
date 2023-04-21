@@ -258,6 +258,67 @@ class FiberPath(GigaTools):
 
         print('Connected graph with school/node vertices')
 
+
+    def set_simplified_sp_graph(self):
+        orig_nodes, dest_nodes = generate_all_index_pairs(self.school_data.index)
+        
+        sps = self.graph_pdn.shortest_paths(orig_nodes, dest_nodes)
+        
+        nx.set_edge_attributes(self.graph, False, 'sp')
+        for path_ in sps:
+            nx.set_edge_attributes(self.graph, {edge_: {'sp': True} for edge_ in zip(path_[:-1], path_[1:])})
+
+        sp_edges = self.edges[list(nx.get_edge_attributes(self.graph, 'sp').values())]
+
+        nx_sp = nx.Graph()
+        nx_sp.add_edges_from(zip(sp_edges['u'], sp_edges['v']))
+
+        splitters = [node_[0] for node_ in nx_sp.degree() if (node_[1]>2) or ((node_[1]>1) and (node_[0] in self.school_data.index))]
+        school_splitter = [s for s in splitters if s in self.school_data.index]
+
+        list_splitters_schools = list(self.school_data.index) + splitters
+        sp_paths_clean = pd.Series(sps).apply(lambda x: list(filter(lambda y: y in list_splitters_schools, x)))
+
+        simplified_sp_weighted_edges = set()
+        for path_ in sp_paths_clean:
+            for edge_ in zip(path_[:-1], path_[1:]):
+                simplified_sp_weighted_edges.add(edge_)
+
+        orig_nodes, dest_nodes = zip(*simplified_sp_weighted_edges)
+        edge_weights = self.graph_pdn.shortest_path_lengths(orig_nodes, dest_nodes)
+        edge_weights = list(map(lambda x: round(x), edge_weights))
+
+        self.graph_sp = nx.Graph()
+        self.graph_sp.add_weighted_edges_from(zip(orig_nodes, dest_nodes, edge_weights))
+        nx.set_node_attributes(self.graph_sp, False, 'school_splitter')
+        nx.set_node_attributes(self.graph_sp, {i: {'school_splitter': True} for i in school_splitter})
+    
+
+    def get_sat_input(self):
+
+        school_splitter = [n for n, splitter in nx.get_node_attributes(self.graph_sp, 'school_splitter').items() if splitter]
+
+        sp_simp_edges = nx.to_pandas_edgelist(self.graph_sp)
+        sp_simp_edges.replace(school_splitter, [str(x)+'_splitter' for x in school_splitter], inplace = True)
+
+        for x in school_splitter:
+            sp_simp_edges= sp_simp_edges.append({'source':x, 'target': str(x)+'_splitter', 'weight': 0}, ignore_index=True)
+        
+        sp_nodes = dict.fromkeys(list(self.graph_sp.nodes) + [str(x)+'_splitter' for x in school_splitter])
+
+        for node_ in sp_nodes.keys():
+
+            if node_ in self.fiber_idx:
+                sp_nodes[node_] = 'fiber'
+            elif node_ in self.school_data.index:
+                sp_nodes[node_] = 'school'
+            else:
+                sp_nodes[node_] = 'splitter'
+
+        sp_nodes = pd.DataFrame(zip(sp_nodes.keys(), sp_nodes.values()), columns=['vertice', 'tags'])
+
+        return sp_nodes, sp_simp_edges
+
     
     def set_school_distance_matrix(self):
 
