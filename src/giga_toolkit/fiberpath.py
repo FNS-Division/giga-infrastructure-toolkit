@@ -9,10 +9,17 @@
 # DEALINGS IN THE SOFTWARE.
 
 
+
+from sklearn.neighbors import KDTree
+import networkx as nx
+import pandana as pdna
+from scipy.sparse.csgraph import minimum_spanning_tree
+import datetime
+import heapq
+from keplergl import KeplerGl
+
 from giga_toolkit.toolkit import GigaTools
 from giga_toolkit.utils import *
-from sklearn.neighbors import KDTree
-import heapq
 
 
 class FiberPath(GigaTools):
