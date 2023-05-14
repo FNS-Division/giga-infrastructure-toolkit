@@ -3,60 +3,63 @@ import pandas as pd
 import os
 from toolkit.utils import data_read, df_to_gdf
 
-class Entity(ABC):
+class POI(ABC):
 
-    def __init__(self, entity_type, filename, id_column, path = os.getcwd()):
-        self.entity_type = entity_type
-        #self.filepath = path + 'data/' + filename
-        self.id_column = id_column
+    def __init__(self, path = os.getcwd(), country_code = None, entity_type = 'Unidentified', filename=None, id_column=None, crs = 'epsg:4326'):
+        
+        if not isinstance(entity_type, str):
+            raise TypeError("entity_type should be a string")
+
         self.path = path
+        self.country_code = country_code
+        self.entity_type = entity_type
+        self.filename = filename
+        self.id_column = id_column
+
         self.data = None
+        filepath = self.get_filepath()
+
+        self._check_file_exists(filepath)
+
     
     def get_type(self):
         return self.entity_type
     
     def get_data(self):
         return self.data
-
-    def _check_id_column(self):
-        if self.id_column not in self.data.columns:
-            raise ValueError(f"The id column '{self.id_column}' does not exist in the dataset")
     
+    def get_filepath(self):
+        
+        if self.filename is not None:
+            return os.path.join(self.path, 'data', self.country_code.upper(), self.filename)
+        else:
+            return None
+        
+    def _check_country_folder_exists(self):
+        if self.country_code is not None:
+             assert os.path.exists(os.path.join(self.path, 'data', self.country_code.upper())), ValueError(f'The country folder {self.country_code.upper()} does not exist in the data folder!')
+    
+    def _check_file_exists(self, filepath):
+        
+        if filepath is not None:
+            assert os.path.exists(filepath), ValueError(f'The file {self.filename} does not exist in the {self.country_code.upper()} folder!')
+
+
+    def _validate_id_column(self):
+        try:
+            self.data[self.id_column]
+        except (KeyError, TypeError):
+            raise ValueError(f"{self.id_column} is not a valid column name")
+
+
     def _check_duplicates(self):
         if self.data[self.id_column].duplicated().any():
             raise ValueError(f"Duplicate id found in {self.id_column} column")
     
     @abstractmethod
-    def prepare_data(self):
+    def prepare_data(self, data, crs):
         raise NotImplementedError("Subclass must implement abstract method")
 
-    
-    def set_data(self):
-
-        filepath = os.path.join(self.path, 'data', self.filename)
-
-        assert os.path.exists(filepath), f'{self.entity_type} data file does not exist in the data path. Please make sure you specify the correct filename for the {self.entity_type} data.'
-
-        df = data_read(filepath)
-        self.data = df_to_gdf(df, rename = True)
-
-        self._check_id_column()
-        self._check_duplicates()
-
-        self.data.set_index(self.id_column, inplace=True)
-        
-        self.prepare_data(self.data)
-    
-
-
-class POI(Entity):
-    
-    def __init__(self, poi_type = 'poi', filename = conf.poi , id_column = 'poi_id'):
-        super().__init__(entity_type = poi_type, filename = filename, id_column=id_column)
-    
-    def prepare_data(self, df):
-        # Code to read data from the file and prepare the data specifically for a point of interest entity
-        self.data = df
 
 
 
@@ -64,7 +67,7 @@ class CellTower(Entity):
     
     id_column = 'ict_id'
 
-    def __init__(self, filename = conf.celltower_filename, id_column = 'ict_id', entity_type = 'CellTower'):
+    def __init__(self, filename, id_column = 'ict_id', entity_type = 'CellTower'):
         super().__init__(entity_type= entity_type, filename = filename, id_column= id_column)
         #self.operator = operator
     
