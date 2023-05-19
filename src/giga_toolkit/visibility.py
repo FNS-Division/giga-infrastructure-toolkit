@@ -15,6 +15,7 @@ from shapely.geometry import LineString
 from pathlib import Path
 from urllib import request
 from typing import Dict
+import plotly.graph_objects as go
 
 from giga_toolkit.toolkit import GigaTools
 from giga_toolkit.utils import *
@@ -111,6 +112,32 @@ class Visibility(GigaTools):
             self.logger.warn(f'Column "height" is not in the dataset. Therefore, "height" column is initialized with avg_tower_height which is set as {self.avg_tower_height}!')
         
         self.tower_data = tower.loc[:, ['lat', 'lon', 'height', 'geometry']]
+    
+    def process_school_building_height(self):
+        """
+        Process the school building height information in the school dataset.
+
+        This method checks the columns in the school dataset related to building height,
+        ensures there is only one height column, and assigns the average school height if
+        no height column is found.
+
+        Returns:
+            None
+        Raises:
+            ValueError: If there are more than one column indicating the school building height.
+        """
+        # Find the column containing the school building height information
+        height_cols = [col for col in self.school_data.columns if 'height' in str(col).lower()]
+
+        # Check if there is more than one height column, and raise an error if so
+        if len(height_cols) > 1:
+            raise ValueError('There are more than one column in the school dataset indicating the school building height! Make sure there is only one height column.')
+        # If there is only one height column, rename it to 'height'
+        elif len(height_cols) == 1:
+            self.school_data.rename(columns={height_cols[0]: 'height'}, inplace=True)
+        # If there is no height column, assign the average school height to a new column 'height'
+        else:
+            self.school_data['height'] = self.avg_school_height
     
     @staticmethod
     def max_distance_to_horizon(height, R = 6371.0):
@@ -233,7 +260,6 @@ class Visibility(GigaTools):
 
         # Retrieve the file from url
         request.urlretrieve(url, path)
-    
 
 
     def download_matching_srtm_tiles(self):
@@ -418,13 +444,16 @@ class Visibility(GigaTools):
         # get elevation and distance profiles
         e_profile, d_profile = zip(*[(i.elevation, i.distance) for i in srtm1_data.get_elevation_profile(lat1, lon1 , lat2, lon2)])
 
+        # map extreme values to below sea level
+        e_profile = list(map(lambda x: x - 65535 if x > 65000 else x, e_profile))
+
         # calculate line of sight profile
         los_profile = np.linspace(e_profile[0] + height1, e_profile[-1] + height2, len(e_profile))
         has_line_of_sight = np.all(los_profile >= e_profile)
 
         if data:
             # return line of sight profile as Pandas DataFrame
-            return pd.DataFrame(zip(los_profile, e_profile, d_profile), columns = ['los_profile', 'elevation_profile', 'distance'])
+            return pd.DataFrame(zip(los_profile, e_profile, d_profile), columns = ['line_of_sight_height', 'elevation', 'distance'])
         
         return has_line_of_sight
     
@@ -483,18 +512,8 @@ class Visibility(GigaTools):
         # download SRTM tiles that match the school and tower data
         self.download_matching_srtm_tiles()
 
-        # find the column containing the school building height information
-        height_cols = [col for col in self.school_data.columns if 'height' in str(col).lower()]
-
-        # Check if there is more than one height column, and raise an error if so
-        if len(height_cols) > 1:
-            raise RuntimeError('There are more than one column in the school dataset indicating the school building height! Make sure there is only one height column.')
-        # If there is only one height column, rename it to 'height'
-        elif len(height_cols) ==1:
-            self.school_data.rename(columns={height_cols[0]: 'height'}, inplace = True)
-        # If there is no height column, assign the average school height to a new column 'height'
-        else:
-            self.school_data['height'] = self.avg_school_height
+        # process school building height
+        self.process_school_building_height()
         
         # load SRTM elevation data
         srtm1_data = Srtm1HeightMapCollection(auto_build_index=True, hgt_dir=Path(self.srtm_folder_path))
@@ -538,7 +557,7 @@ class Visibility(GigaTools):
                         twr_idx + '_lat': twr.lat,
                         twr_idx + '_lon': twr.lon,
                         #twr_idx + '_dist': twr.dist_km,
-                        twr_idx + '_anternna_dist': Visibility.calculate_three_dimension_haversine(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height),
+                        twr_idx + '_antenna_dist': Visibility.calculate_three_dimension_haversine(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height),
                         twr_idx + '_azimuth_angle': Visibility.calculate_azimuth(school.lat, school.lon, twr.lat, twr.lon),
                         twr_idx + '_los_geom': LineString([twr.geometry, school.geometry])
                     })
@@ -590,3 +609,50 @@ class Visibility(GigaTools):
         else:
 
             return self.get_visibility()
+
+    @staticmethod
+    def plot_visibility_profile(srtm1_data, lat1, lon1, height1, lat2, lon2, height2, signal_frequency: float = 2.4):
+        
+        df_elev = Visibility.check_visibility(srtm1_data, lat1, lon1, height1, lat2, lon2, height2, data = True)
+
+        x_start, x_end = df_elev['distance'].iloc[[0, -1]]
+        y_start, y_end = df_elev['elevation'].iloc[[0, -1]]
+        
+        min_elevation = df_elev['elevation'].min()
+
+        fresnel_x, fresnel_y = Visibility.calculate_fresnel(x_start, y_start + height1, x_end, y_end + height2, signal_frequency, len(df_elev))
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(x=df_elev['distance'], y=df_elev['elevation'],
+                            mode='lines',
+                            name='Elevation Profile', line = dict(color = '#e5e3df', width = 2), showlegend=False))#fill='tonext', fillcolor = 'rgba(255, 0, 0, 0.1)'))
+
+        fig.add_trace(go.Scatter(x=[x_start, x_end], y=[min_elevation - 30 , min_elevation - 30], visible= True,
+                            mode='lines', name = '', line = dict(color='#17BECF', width = .1), fill = 'tonextx', fillcolor = 'rgba(229, 227, 223, 0.2)', showlegend= False))
+
+        fig.add_trace(go.Scatter(x=[x_start, x_end], y=[y_start + height1, y_end + height2],
+                            mode='lines',
+                            name='Line of Sight', line = dict(color='#EF553B', width = 1), ))#fill = 'tonexty', fillcolor = 'rgba(0, 255, 0, 0.1)'))
+
+        fig.add_trace(go.Scatter(x=[x_start, x_start], y=[y_start, y_start + height1],
+                            mode='lines', name='', line = dict(color='#FECB52'), showlegend=False))
+        
+        fig.add_trace(go.Scatter(x=[x_start], y=[y_start+height1], mode='markers', name = 'Location 1', marker_color = '#FECB52'))
+
+        fig.add_trace(go.Scatter(x=[x_end, x_end], y=[y_end, y_end + height2],
+                            mode='lines', name = '', line = dict(color='#17BECF'), showlegend=False))
+        
+        fig.add_trace(go.Scatter(x=[x_end], y=[y_end+height2], mode='markers', name = 'Location 2', marker_color = '#17BECF'))
+
+        fig.add_trace(go.Scatter(x=fresnel_x, y=fresnel_y,
+                            mode='lines',
+                            name='Fresnel', line = dict(color = '#ff9900', width = .5, dash ='dot'), showlegend=True))#fill='tonext', fillcolor = 'rgba(255, 0, 0, 0.1)'))
+        
+        fig.update_layout(template='plotly_dark',
+                            legend=dict(orientation = 'h'),
+                            xaxis=dict(showgrid=False, zeroline=False),
+                            yaxis=dict(showgrid=False, zeroline = False)
+        )
+
+        return fig
