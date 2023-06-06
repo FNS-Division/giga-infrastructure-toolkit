@@ -355,10 +355,14 @@ class Visibility(GigaTools):
         # Get the indices of the towers within the specified radius.
         neighbors = kdtree_of_towers.query_ball_point(query_instance, r=radius)
 
-        # Get the distances of the towers within the specified radius from the query point.
-        dist, ind = kdtree_of_towers.query(query_instance, len(neighbors))
+        if len(neighbors) > 0:
 
-        return ind, deg2km(dist)
+            # Get the distances of the towers within the specified radius from the query point.
+            dist, ind = kdtree_of_towers.query(query_instance, len(neighbors))
+
+            return ind, deg2km(dist)
+        else:
+            return None, None
 
     @staticmethod
     def calculate_fresnel(x1, y1, x2, y2, frequency, num_points):
@@ -532,8 +536,13 @@ class Visibility(GigaTools):
             # find towers within maximum tower reach
             neighbors, dist_km = Visibility.bubble_towers(kdtree, np.array([school.lon, school.lat]), self.max_tower_reach)
 
-            if len(neighbors) == 0:
+            # if no neighbor towers skip the school
+            if neighbors is None:
                 continue
+            
+            # if only one neighbor tower conver int to list
+            if isinstance(neighbors, int):
+                neighbors = [neighbors]
 
             # initialize visibility dictionary for current school
             visible_count = 0
