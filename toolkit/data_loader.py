@@ -8,6 +8,7 @@ import os
 class DataLoader:
     def __init__(self, data_dir):
         self.data_dir = data_dir
+        
 
     def read_file(self, file_name):
         """

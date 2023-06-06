@@ -1,25 +1,30 @@
 from abc import ABC, abstractmethod
 import pandas as pd
+from toolkit import data_loader
+from config import data
 import os
-from toolkit.utils import data_read, df_to_gdf
 
-class POI(ABC):
+class Entity(ABC):
 
-    def __init__(self, path = os.getcwd(), country_code = None, entity_type = 'Unidentified', filename=None, id_column=None, crs = 'epsg:4326'):
+    _shared_state = dict()
+
+    def __init__(self, path = os.path.dirname(os.path.dirname(os.path.abspath())), country_code = None, entity_type = 'Unidentified', filename=None, id_column=None, crs = 'epsg:4326'):
         
         if not isinstance(entity_type, str):
             raise TypeError("entity_type should be a string")
 
+        self.__dict__ = self._shared_state
         self.path = path
+        self.data_dir = os.path.join(path, 'data')
         self.country_code = country_code
         self.entity_type = entity_type
         self.filename = filename
         self.id_column = id_column
 
         self.data = None
-        filepath = self.get_filepath()
+        #filepath = self.get_filepath()
 
-        self._check_file_exists(filepath)
+        #self._check_file_exists(filepath)
 
     
     def get_type(self):
@@ -60,6 +65,13 @@ class POI(ABC):
     def prepare_data(self, data, crs):
         raise NotImplementedError("Subclass must implement abstract method")
 
+
+class POI(Entity):
+
+    def __init__(self, **kwargs):
+        super().__init__(self)
+        self._shared_state.update(kwargs)
+    
 
 
 
