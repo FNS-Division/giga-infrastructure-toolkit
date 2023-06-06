@@ -313,7 +313,7 @@ class Visibility(GigaTools):
             self.logger.info('Initializing EarthData credentials...')
 
             # if account details are not provided, read them from file
-            if len(self.earthdata_account_id) == 0 or len(self.earthdata_pwd) == 0:
+            if len(self.earthdata_username) == 0 or len(self.earthdata_password) == 0:
                 assert os.path.exists(os.path.join(self.path, 'assets', self.earthdata_account_file)), f'Please provide EarthData account details in a text file named {self.earthdata_account_file} under assets folder!'
 
                 # open file containing EarthData username and password
