@@ -140,22 +140,43 @@ class Visibility(GigaTools):
             self.school_data['height'] = self.avg_school_height
     
     @staticmethod
-    def max_distance_to_horizon(height, R = 6371.0):
+    def max_distance_to_horizon(observer_height, R = 6371.0):
 
         """
-        Calculates the maximum distance to the horizon given the height of an observer above the Earth's surface.
-        
+        Calculate the maximum distance to the horizon for an observer.
+
         Args:
-        height (float): The height of the observer above the Earth's surface in meters.
-        R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
-        
+            observer_height (float): The height of the observer in meters.
+            R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+
         Returns:
-        float: The maximum distance to the horizon in kilometers.
+            float: The maximum distance to the horizon in kilometers.
         """
+
         # Calculate the maximum distance to the horizon using the Pythagorean theorem
         # d^2 = 2*R*h where d is the distance to the horizon, R is the radius of the Earth, and h is the height of the observer.
-        distance_to_horizon = np.sqrt(2 * R * height)
+        observer_height_km = observer_height / 1000  # Convert observer height to kilometers
+        distance_to_horizon = np.sqrt((2 * R * observer_height_km) + (observer_height_km ** 2))
+        
         return distance_to_horizon
+    
+    @staticmethod
+    def sum_of_horizon_distances(first_observer_height, second_observer_height):
+        """
+        Calculate the sum of the distances to the horizons of two observers.
+
+        Args:
+            first_observer_height (float): The height of the first observer in meters.
+            second_observer_height (float): The height of the second observer in meters.
+
+        Returns:
+            float: The sum of the distances to the horizons in kilometers.
+        """
+        distance_to_horizon_1 = Visibility.max_distance_to_horizon(first_observer_height)
+        distance_to_horizon_2 = Visibility.max_distance_to_horizon(second_observer_height)
+        total_horizon_distance = distance_to_horizon_1 + distance_to_horizon_2
+
+        return total_horizon_distance
 
     
     @staticmethod
