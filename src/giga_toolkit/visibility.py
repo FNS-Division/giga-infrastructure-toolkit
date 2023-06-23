@@ -140,23 +140,29 @@ class Visibility(GigaTools):
             self.school_data['height'] = self.avg_school_height
     
     @staticmethod
-    def max_distance_to_horizon(observer_height, R = 6371.0):
+    def calculate_distance_to_horizon(observer_height, R = 6371.0, k = 0):
 
         """
         Calculate the maximum distance to the horizon for an observer.
 
         Args:
-            observer_height (float): The height of the observer in meters.
+            observer_height (float): The height of the observer in meters measured from the surface of the globe.
             R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+            k (float, optional): The refraction coefficient; standard at sea level k = 0.170
 
         Returns:
-            float: The maximum distance to the horizon in kilometers.
+            float: Distance to the horizon in meters.
         """
+
+        # calculate refracted radius of the earth
+        R_ = R / (1-k)
+
+        # convert earth radius to meters
+        R_ = R_ * 1000
 
         # Calculate the maximum distance to the horizon using the Pythagorean theorem
         # d^2 = 2*R*h where d is the distance to the horizon, R is the radius of the Earth, and h is the height of the observer.
-        observer_height_km = observer_height / 1000  # Convert observer height to kilometers
-        distance_to_horizon = np.sqrt((2 * R * observer_height_km) + (observer_height_km ** 2))
+        distance_to_horizon = np.sqrt((2 * R_ * observer_height) + (observer_height ** 2))
         
         return distance_to_horizon
     
@@ -172,11 +178,90 @@ class Visibility(GigaTools):
         Returns:
             float: The sum of the distances to the horizons in kilometers.
         """
-        distance_to_horizon_1 = Visibility.max_distance_to_horizon(first_observer_height)
-        distance_to_horizon_2 = Visibility.max_distance_to_horizon(second_observer_height)
+        distance_to_horizon_1 = Visibility.calculate_distance_to_horizon(first_observer_height)
+        distance_to_horizon_2 = Visibility.calculate_distance_to_horizon(second_observer_height)
         total_horizon_distance = distance_to_horizon_1 + distance_to_horizon_2
 
         return total_horizon_distance
+
+    @staticmethod
+    def calculate_curvature_drop(distance_from_observer, R = 6371.0, k = 0):
+
+        """
+        Calculate the curvature drop for a given distance from the observer.
+
+        Args:
+            distance_from_observer (float): The distance from the observer to the object in meters.
+            R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+            k (float, optional): The refraction coefficient; standard at sea level k = 0.170
+
+        Returns:
+            float: The curvature drop in meters.
+        """
+
+        # calculate refracted radius of the earth
+        R_ = R / (1-k)
+
+        # convert earth radius to meters
+        R_ = R_ * 1000
+
+        curvature_drop = distance_from_observer ** 2 / (2 * R_)
+
+        return curvature_drop
+    
+    @staticmethod
+    def calculate_hidden_height(observer_height, distance_from_observer, R = 6371.0, k = 0):
+
+        """
+        Calculate the hidden height of an object below the observer's line of sight.
+
+        Args:
+            observer_height (float): The height of the observer in meters measured from the surface of the globe.
+            distance_from_observer (float): The distance from the observer to the object in meters.
+            R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+            k (float, optional): The refraction coefficient; standard at sea level k = 0.170
+
+        Returns:
+            float: The hidden height of the object in meters.
+        """
+
+        # calculate observer horizon in meters
+        distance_to_horizon = Visibility.calculate_distance_to_horizon(observer_height, R , k)
+
+        if distance_from_observer <= distance_to_horizon:
+            hidden_height = 0
+        else:
+            hidden_height = Visibility.calculate_curvature_drop(distance_from_observer - distance_to_horizon, R, k)
+
+        return hidden_height
+
+
+    @staticmethod
+    def adjust_elevation(observer_height, distance_from_observer, R = 6371.0, k = 0):
+
+        """
+        Adjust the elevation based on the curvature of the Earth.
+
+        Args:
+            observer_height (float): The height of the observer in meters measured from the surface of the globe.
+            distance_from_observer (float): The distance from the observer to the target in meters.
+            R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+            k (float, optional): The refraction coefficient; standard at sea level k = 0.170
+
+        Returns:
+            float: The curvature correction in meters.
+        """
+
+        # calculate observer horizon in meters
+        distance_to_horizon = Visibility.calculate_distance_to_horizon(observer_height, R, k)
+
+
+        if distance_from_observer <= distance_to_horizon:
+            curvature_correction = Visibility.calculate_curvature_drop(distance_from_observer, R, k)
+        else:
+            curvature_correction = - Visibility.calculate_curvature_drop(distance_from_observer - distance_to_horizon, R, k)
+        
+        return curvature_correction
 
     
     @staticmethod
@@ -447,23 +532,25 @@ class Visibility(GigaTools):
     
 
     @staticmethod
-    def check_visibility(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, height1, lat2, lon2, height2, data = False):
+    def check_visibility(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, size1, lat2, lon2, size2, R = 6371.0, k = 0, return_data = False):
 
         """
         Calculates the line of sight visibility between two points using SRTM data.
 
         Args:
             srtm1_data (Srtm1HeightMapCollection): An SRTM1 height map collection.
-            lat1 (float): The latitude of the first point.
-            lon1 (float): The longitude of the first point.
-            height1 (float): The height of the first point.
-            lat2 (float): The latitude of the second point.
-            lon2 (float): The longitude of the second point.
-            height2 (float): The height of the second point.
-            data (bool): Whether to return a Pandas DataFrame with additional information.
+            lat1 (float): The latitude of the first object.
+            lon1 (float): The longitude of the first object.
+            size1 (float): The size of the first object.
+            lat2 (float): The latitude of the second object.
+            lon2 (float): The longitude of the second object.
+            size2 (float): The size of the second object.
+            R (float, optional): The radius of the Earth in kilometers. Default value is 6371.0 km.
+            k (float, optional): The refraction coefficient; standard at sea level k = 0.170
+            return_data (bool): Whether to return a Pandas DataFrame with additional information.
 
         Returns:
-            bool or DataFrame: Whether there is line of sight visibility between the two points. If data is True, a Pandas DataFrame with additional information is returned.
+            bool or DataFrame: Whether there is line of sight visibility between the two points. If return_data is True, a Pandas DataFrame with additional information is returned.
         """
 
         # get elevation and distance profiles
@@ -472,13 +559,17 @@ class Visibility(GigaTools):
         # map extreme values to below sea level
         e_profile = list(map(lambda x: x - 65535 if x > 65000 else x, e_profile))
 
-        # calculate line of sight profile
-        los_profile = np.linspace(e_profile[0] + height1, e_profile[-1] + height2, len(e_profile))
-        has_line_of_sight = np.all(los_profile >= e_profile)
+        # incorporate earth curvature into elevation profile
+        curvature_adjustment = list(map(lambda x: Visibility.adjust_elevation(e_profile[0] + size1, x, R, k), d_profile))
+        adjusted_e_profile = np.add(e_profile, curvature_adjustment)
 
-        if data:
+        # calculate line of sight profile
+        los_profile = np.linspace(adjusted_e_profile[0] + size1, adjusted_e_profile[-1] + size2, len(e_profile))
+        has_line_of_sight = np.all(los_profile >= adjusted_e_profile)
+
+        if return_data:
             # return line of sight profile as Pandas DataFrame
-            return pd.DataFrame(zip(los_profile, e_profile, d_profile), columns = ['line_of_sight_height', 'elevation', 'distance'])
+            return pd.DataFrame(zip(los_profile, e_profile, adjusted_e_profile, d_profile), columns = ['line_of_sight_height', 'elevation', 'adjusted_elevation', 'distance'])
         
         return has_line_of_sight
     

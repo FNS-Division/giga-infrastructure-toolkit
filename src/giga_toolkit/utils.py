@@ -56,6 +56,8 @@ def data_read(filepath):
         df = pd.read_json(filepath)
     elif file_format == 'parquet':
         df = pd.read_parquet(filepath, engine='fastparquet')
+    elif file_format == 'geoparquet':
+        df = gp.read_parquet(filepath)
     elif file_format == 'geojson':
         df = gp.read_file(filepath)
     elif file_format == 'zip' and filepath.split('.')[-2] == 'shp':
@@ -63,7 +65,7 @@ def data_read(filepath):
     elif file_format =='gpkg':
         df = gp.read_file(filepath)
     else:
-        raise ValueError('Allowed file formats: "csv", "xlsx", "json", "parquet", "geojson", "shp.zip" and "gpkg". Please update the file format and try again!')
+        raise ValueError('Allowed file formats: "csv", "xlsx", "json", "parquet", "geoparquet", "geojson", "shp.zip" and "gpkg". Please update the file format and try again!')
     
     return df
 
