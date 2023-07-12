@@ -466,9 +466,9 @@ class Visibility(GigaTools):
             # Get the distances of the towers within the specified radius from the query point.
             dist, ind = kdtree_of_towers.query(query_instance, len(neighbors))
 
-            return ind, deg2km(dist)
+            return ind
         else:
-            return None, None
+            return None
 
     @staticmethod
     def calculate_fresnel(x1, y1, x2, y2, frequency, num_points):
@@ -573,44 +573,6 @@ class Visibility(GigaTools):
         
         return has_line_of_sight
     
-
-    @staticmethod
-    def calculate_three_dimension_haversine(srtm1_data: Srtm1HeightMapCollection, lat1, lon1, height1, lat2, lon2, height2):
-        """
-        Calculate the three-dimensional Haversine distance between two points in latitude, longitude, and altitude.
-        
-        Args:
-        - srtm1_data: Srtm1HeightMapCollection - SRTM1 data for the area
-        - lat1: float - latitude of point 1 (in degrees)
-        - lon1: float - longitude of point 1 (in degrees)
-        - height1: float - altitude of point 1 (in meters)
-        - lat2: float - latitude of point 2 (in degrees)
-        - lon2: float - longitude of point 2 (in degrees)
-        - height2: float - altitude of point 2 (in meters)
-        
-        Returns:
-        - float: the three-dimensional Haversine distance between the two points (in meters)
-        """
-        
-        # Get the elevation of point 1 and point 2
-
-        h1 = srtm1_data.get_altitude(lat1, lon1) + height1
-
-        h2 = srtm1_data.get_altitude(lat2,lon2) + height2
-
-        # Calculate the great circle distance between the points (in kilometers)
-        distance_km = haversine_([lat1,lat2],[lon1,lon2],upper_tri=True)
-
-        # Convert the distance to meters
-        distance_m = distance_km[0] * 1000
-
-        # Calculate the difference in height between the points (in meters)
-        dheight = h2 - h1
-
-        # Calculate the three-dimensional Haversine distance (in meters)
-        d3 = np.sqrt(distance_m ** 2 + dheight ** 2)
-        
-        return d3
     
     
     def get_visibility(self) -> Dict:
@@ -646,7 +608,7 @@ class Visibility(GigaTools):
             self.logger.debug(f"Calculating visibility for school {school.Index}")
             
             # find towers within maximum tower reach
-            neighbors, dist_km = Visibility.bubble_towers(kdtree, np.array([school.lon, school.lat]), self.max_tower_reach)
+            neighbors = Visibility.bubble_towers(kdtree, np.array([school.lon, school.lat]), self.max_tower_reach)
 
             # if no neighbor towers skip the school
             if neighbors is None:
@@ -664,7 +626,7 @@ class Visibility(GigaTools):
 
             # iterate over towers within maximum tower reach and check visibility
             tower_match = self.tower_data.iloc[neighbors].copy()
-            #tower_match['dist_km'] = dist_km
+
             for twr in tower_match.itertuples():
                 self.n_checks += 1
                 has_line_of_sight = Visibility.check_visibility(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height)
@@ -672,13 +634,17 @@ class Visibility(GigaTools):
                 
                 # If the tower is visible, add tower information to visibility dictionary for current school
                 if has_line_of_sight:
+                    # get the altitudes of tower and school antennas to calculate line of sight distance between two antennas
+                    twr_alt = srtm1_data.get_altitude(twr.lat, twr.lon) + twr.height
+                    school_alt = srtm1_data.get_altitude(school.lat, school.lon) + school.height
+
                     twr_idx = 'tower_' + str(visible_count)
                     visibility_dict[school.Index].update({
                         twr_idx: twr.Index,
                         twr_idx + '_lat': twr.lat,
                         twr_idx + '_lon': twr.lon,
-                        #twr_idx + '_dist': twr.dist_km,
-                        twr_idx + '_antenna_dist': Visibility.calculate_three_dimension_haversine(srtm1_data, school.lat, school.lon, school.height, twr.lat, twr.lon, twr.height),
+                        twr_idx + '_ground_distance': haversine_([school.lat,twr.lat],[school.lon,twr.lon],upper_tri=True)[0] * 1e3,
+                        twr_idx + '_los_antenna': line_of_sight_distance_with_altitude(school.lat, school.lon, school_alt, twr.lat, twr.lon, twr_alt),
                         twr_idx + '_azimuth_angle': Visibility.calculate_azimuth(school.lat, school.lon, twr.lat, twr.lon),
                         twr_idx + '_los_geom': LineString([twr.geometry, school.geometry])
                     })

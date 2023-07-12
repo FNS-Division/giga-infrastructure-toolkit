@@ -305,6 +305,87 @@ def haversine_(lats, lons, R = 6371.0, upper_tri = False):
     
     return distances
 
+def spherical_to_cartesian(lat, lon, alt, R = 6371e3):
+    """  
+    Convert geographical coordinates (latitude, longitude, altitude) to Cartesian coordinates (x, y, z).  
+      
+    Args:  
+        lat (float): Latitude in decimal degrees.  
+        lon (float): Longitude in decimal degrees.  
+        alt (float): Altitude in meters above the Earth's surface. 
+        R (float): Earth's radius in meters
+  
+    Returns:  
+        tuple: Cartesian coordinates (x, y, z) in meters.  
+    """ 
+
+    r = R + alt  
+    lat_rad = np.radians(lat)  
+    lon_rad = np.radians(lon)  
+
+    x = r * np.cos(lat_rad) * np.cos(lon_rad)  
+    y = r * np.cos(lat_rad) * np.sin(lon_rad)  
+    z = r * np.sin(lat_rad)  
+
+    return x, y, z
+
+
+def line_of_sight_distance_with_altitude(lat1, lon1, alt1, lat2, lon2, alt2, R = 6371e3): 
+    """  
+    Calculate the line of sight distance between two points with latitude, longitude, and altitude information.  
+      
+    Args:  
+        lat1 (float): Latitude of point 1 in decimal degrees.  
+        lon1 (float): Longitude of point 1 in decimal degrees.  
+        alt1 (float): Altitude of point 1 in meters above the Earth's surface.  
+        lat2 (float): Latitude of point 2 in decimal degrees.  
+        lon2 (float): Longitude of point 2 in decimal degrees.  
+        alt2 (float): Altitude of point 2 in meters above the Earth's surface.
+        R (float): Earth's radius in meters
+    
+    Returns:  
+        float: The line of sight distance between two points in meters.  
+    
+    """
+
+    x1, y1, z1 = spherical_to_cartesian(lat1, lon1, alt1, R)
+    x2, y2, z2 = spherical_to_cartesian(lat2, lon2, alt2, R)  
+  
+    distance = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2 + (z2 - z1) ** 2)  
+    return distance
+
+
+def line_of_sight_distance_with_altitude_simplified(lat1, lon1, alt1, lat2, lon2, alt2):
+    """
+    Calculate the line of sight distance between two points with latitude, longitude, and altitude information using simplified formula.
+    
+    Args:
+        lat1 (float): Latitude of point 1 in decimal degrees.  
+        lon1 (float): Longitude of point 1 in decimal degrees.  
+        alt1 (float): Altitude of point 1 in meters above the Earth's surface.  
+        lat2 (float): Latitude of point 2 in decimal degrees.  
+        lon2 (float): Longitude of point 2 in decimal degrees.  
+        alt2 (float): Altitude of point 2 in meters above the Earth's surface.
+    
+    Returns:
+    - float: The line of sight distance between two points in meters calculated using simplified formula. 
+    """
+
+    # Calculate the great circle distance between the points (in kilometers)
+    distance_km = haversine_([lat1,lat2],[lon1,lon2],upper_tri=True)
+
+    # Convert the distance to meters
+    distance_m = distance_km[0] * 1000
+
+    # Calculate the difference in height between the points (in meters)
+    dheight = alt2 - alt1
+
+    # Calculate the simplified line of sight distance between two points (in meters)
+    d3 = np.sqrt(distance_m ** 2 + dheight ** 2)
+    
+    return d3
+
+
 def km2deg(km, R = 6371.0):
     """
     Converts distance in kilometers to distance in degrees longitude/latitude.
